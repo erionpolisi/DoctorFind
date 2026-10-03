@@ -1,0 +1,33 @@
+{
+  "version": "APPv1",
+  "language": "om",
+  "note": "Afaan Oromoo strings are team-curated synthetic translations (Latin script = GSM-7 safe). Flagged for native-speaker review before any field use.",
+  "max_selected": 4,
+  "severity_legend": { "1": "danger sign -> tier 1 urgent", "2": "moderate -> tier 2 clinic", "3": "mild -> tier 3 pharmacy" },
+  "symptoms": [
+    { "code": "S01", "en": "Convulsion / seizure",        "om": "Gaggabdoo",                          "emoji": "⚡",  "severity": 1, "specialty": "general"   },
+    { "code": "S02", "en": "Unconscious / not responding","om": "Of wallaaluu",                       "emoji": "😵",  "severity": 1, "specialty": "general"   },
+    { "code": "S03", "en": "Severe bleeding",             "om": "Dhiiguu cimaa",                      "emoji": "🩸",  "severity": 1, "specialty": "trauma"    },
+    { "code": "S04", "en": "Difficulty breathing",        "om": "Hafuura baafachuu rakkachuu",        "emoji": "😮‍💨", "severity": 1, "specialty": "general"   },
+    { "code": "S05", "en": "Chest pain",                  "om": "Dhukkubbii qomaa",                   "emoji": "❤️‍🩹", "severity": 1, "specialty": "general"   },
+    { "code": "S06", "en": "Snake bite",                  "om": "Ciniinnaa bofaa",                    "emoji": "🐍",  "severity": 1, "specialty": "trauma"    },
+    { "code": "S07", "en": "Severe burn",                 "om": "Gubaa cimaa",                        "emoji": "🔥",  "severity": 1, "specialty": "trauma"    },
+    { "code": "S08", "en": "Child cannot drink or eat",   "om": "Daa'imni dhuguu/nyaachuu dadhabe",   "emoji": "🍼",  "severity": 1, "specialty": "pediatric" },
+    { "code": "S09", "en": "Pregnancy problem",           "om": "Rakkina ulfaa",                      "emoji": "🤰",  "severity": 1, "specialty": "maternity" },
+    { "code": "S10", "en": "Fever",                       "om": "Ho'a qaamaa",                        "emoji": "🌡️", "severity": 2, "specialty": "general"   },
+    { "code": "S11", "en": "Vomiting",                    "om": "Hoqqisuu",                           "emoji": "🤮",  "severity": 2, "specialty": "general"   },
+    { "code": "S12", "en": "Diarrhea",                    "om": "Garaa kaasaa",                       "emoji": "🚽",  "severity": 2, "specialty": "general"   },
+    { "code": "S13", "en": "Stomach pain",                "om": "Dhukkubbii garaa",                   "emoji": "😣",  "severity": 2, "specialty": "general"   },
+    { "code": "S14", "en": "Wound / injury",              "om": "Madaa",                              "emoji": "🩹",  "severity": 2, "specialty": "trauma"    },
+    { "code": "S15", "en": "Ear pain",                    "om": "Dhukkubbii gurraa",                  "emoji": "👂",  "severity": 2, "specialty": "general"   },
+    { "code": "S16", "en": "Eye problem",                 "om": "Rakkina ijaa",                       "emoji": "👁️", "severity": 2, "specialty": "general"   },
+    { "code": "S17", "en": "Dizziness",                   "om": "Mataa naanna'uu",                    "emoji": "💫",  "severity": 2, "specialty": "general"   },
+    { "code": "S18", "en": "Headache",                    "om": "Dhukkubbii mataa",                   "emoji": "🤕",  "severity": 3, "specialty": "general"   },
+    { "code": "S19", "en": "Cough",                       "om": "Qufaa",                              "emoji": "😷",  "severity": 3, "specialty": "general"   },
+    { "code": "S20", "en": "Runny nose / cold",           "om": "Utaalloo",                           "emoji": "🤧",  "severity": 3, "specialty": "general"   },
+    { "code": "S21", "en": "Sore throat",                 "om": "Dhukkubbii qoonqoo",                 "emoji": "🗣️", "severity": 3, "specialty": "general"   },
+    { "code": "S22", "en": "Body / joint pain",           "om": "Dhukkubbii buusaa",                  "emoji": "🦴",  "severity": 3, "specialty": "general"   },
+    { "code": "S23", "en": "Weakness / fatigue",          "om": "Dadhabbii",                          "emoji": "🥱",  "severity": 3, "specialty": "general"   },
+    { "code": "S24", "en": "Skin rash",                   "om": "Finniisa gogaa",                     "emoji": "✴️", "severity": 3, "specialty": "general"   }
+  ]
+}

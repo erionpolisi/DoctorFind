@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+server/cases.db
+node_modules/
+.expo/
+dist/
+.venv/

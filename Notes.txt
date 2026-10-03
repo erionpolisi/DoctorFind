@@ -1,0 +1,36 @@
+Goal: Chatbot for costumors with health-issues. 
+These costumors, are from rural and poor areas and don`t have any wifi connection. 
+Point them out to the nearest hospital with enough capacity.
+
+Wokflow:
+
+Urgent cases:
+1. Patient in village sends message to hospitals via broadcast
+2. Hospitals server with llm sends answer back with information
+3. The local application on patients device calculates (probably with ML or LLM for translstion) the best hospital for the use case
+
+Not urgent:
+Sends to local drug store
+
+
+Constraints:
+
+- The Application needs to be lightweight
+- The best sent via Hash-Set or generally hashes, because the local ML calculates with the Symptoms and thats how we can transfer the data
+- Message is sent ONLY via SMS
+- Compatible with old devices
+
+Must Haves:
+
+- User friendly UX for people who are illiterate or disabled
+- AI for Translation
+- Algrothm for Hospital appoitance
+
+what we solve:
+
+- less overcrowded hospitals
+- documentation record keeping burden stated
+
+
+
+
