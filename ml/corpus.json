@@ -73,7 +73,16 @@
             "humni na dhabame", "laafina qaba", "nan laafe", "dadhabbiin na qabe"],
     "S24": ["finniisni gogaa irra jira", "gogaan diimate", "finniisa qaba",
             "gogaa irra waan bahee jira", "gogaan na hooqsisa",
-            "gogaatu na hooqsisa", "finniisni bahee", "gogaan koo diimatee jira", "gogaan hooqsisaa jira"]
+            "gogaatu na hooqsisa", "finniisni bahee", "gogaan koo diimatee jira", "gogaan hooqsisaa jira"],
+    "S25": ["ilkaan na dhukkuba", "dhukkubbii ilkaanii qaba", "ilkaan koo na dhukkuba",
+            "ilkaanitu na dhukkuba", "ilkaan na nyaata", "ilkaan bokoke",
+            "ilkaan keessa dhukkubbii jira", "ilkaan halkan na rakkisa"],
+    "S26": ["fincaan na dhukkuba", "fincaa'uun na dhukkuba", "dhukkubbii fincaanii qaba",
+            "fincaan gubaa qaba", "yeroo fincaa'u na gubaa", "fincaan yeroo baay'ee deema",
+            "fincaa'uu dadhabe", "fincaan diimaa dha"],
+    "S27": ["sareen na ciniinte", "bineensi na ciniine", "ciniinnaa saree qaba",
+            "sareetu na ciniine", "bineensaan ciniiname", "saree maraatteen ciniiname",
+            "harka saree na ciniinte", "miila bineensi na ciniine"]
   },
   "gibberish": [
     "akkam jirta", "nagaa dha", "maqaan koo noor", "kaleessa gabaa deeme",

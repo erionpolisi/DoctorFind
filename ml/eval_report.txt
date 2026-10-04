@@ -1,8 +1,8 @@
 DoctorFind classifier eval (IDF nearest-phrase, conjunction-segmented cosine)
-train docs: 184  test docs: 87  vocab: 771
-exact-set accuracy:        64/87 = 73.6%
-partial-overlap accuracy:  64/87 = 73.6%
-fail-safe on clear phrases (want low):  10/87 = 11.5%
-fail-safe on gibberish     (want high): 10/12 = 83.3%
+train docs: 202  test docs: 93  vocab: 797
+exact-set accuracy:        75/93 = 80.6%
+partial-overlap accuracy:  76/93 = 81.7%
+fail-safe on clear phrases (want low):  11/93 = 11.8%
+fail-safe on gibberish     (want high): 9/12 = 75.0%
 ambiguity threshold: 0.5  select threshold: 0.4
 corpus: ml/corpus.json — synthetic, team-curated Afaan Oromoo (needs native-speaker review).

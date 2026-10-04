@@ -40,5 +40,28 @@ state = json.loads(urllib.request.urlopen(f"{BASE}/api/state").read())
 queue = [c for c in state["cases"] if c["needs_review"] and not c["handled"]]
 print(f"\nreview queue entries: {len(queue)} (urgent + 2 ambiguous expected = 3)")
 f01 = next(f for f in state["facilities"] if f["id"] == "F01")
-print(f"Adama Hospital beds after urgent reservation: {f01['available_beds']}/20 (expected 13)")
+print(f"Adama Hospital occupancy after routing (unchanged until staff accept): "
+      f"{f01['beds_occupied']}/{f01['total_beds']} (expected 16/20)")
+
+
+def post(path: str) -> dict:
+    req = urllib.request.Request(f"{BASE}{path}", data=b"", method="POST")
+    return json.loads(urllib.request.urlopen(req).read())
+
+
+# --- overload scenario: all hospitals full => biggest hospital + waiting list
+for f in state["facilities"]:
+    if f["type"] == "hospital":
+        free = f["total_beds"] - f["beds_occupied"]
+        if free > 0:
+            post(f"/api/facilities/{f['id']}/beds?delta={free}")
+r = send(hashing.build_payload(["S03"], "OR-12", "1"))
+full_ok = "A:GO_HOSPITAL" in r["reply_sms"] and "Adama" in r["reply_sms"]
+acc = post(f"/api/cases/{r['case_id']}/accept")
+wait_ok = acc.get("waitlisted") is True
+ok &= full_ok and wait_ok
+print(f"{'PASS' if full_ok else 'FAIL'}  S4 all hospitals full -> biggest hospital, never a clinic")
+print(f"      <- {r['reply_sms']}")
+print(f"{'PASS' if wait_ok else 'FAIL'}  S4b accept while full -> waiting list (occupancy over total)")
+post("/api/reset")
 sys.exit(0 if ok else 1)

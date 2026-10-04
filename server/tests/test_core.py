@@ -92,18 +92,40 @@ def test_ambiguous_failsafe(client):
 def test_routing_capacity():
     sy = SY
     facs = [dict(f) for f in CONFIG["facilities"]]
-    # tier 1 from OR-12: Wonji HC (nearest, 0 beds) must lose to Adama Hospital (14 beds)
+    # tier 1 from OR-12: Wonji HC (nearest, full 6/6) must lose to Adama Hospital (4 free)
     res = routing.route("1", "OR-12", ("S01", "S10"), facs, CONFIG, sy)
     assert res["facility"]["id"] == "F01"
     assert res["action"] == "GO_HOSPITAL"
     assert res["review_needed"] is True  # urgent always lands in human queue
 
-    # zero ALL beds => CALLBACK fallback, never silence
+    # fill ALL beds => urgent still goes to the hospital with the most capacity
+    # (waiting list), never to a health center, never silence
     for f in facs:
-        f["available_beds"] = 0
+        f["beds_occupied"] = f["total_beds"]
     res2 = routing.route("1", "OR-12", ("S01",), facs, CONFIG, sy)
-    assert res2["action"] == "CALLBACK"
-    assert res2["facility"] is not None
+    assert res2["action"] == "GO_HOSPITAL"
+    assert res2["facility"]["type"] == "hospital"
+    assert res2["facility"]["id"] == "F01"  # largest hospital (20 beds)
+    assert res2.get("overloaded") is True
+    assert res2["review_needed"] is True
+
+    # tier 2 with everything full still falls back to CALLBACK
+    res3 = routing.route("2", "OR-12", ("S13",), facs, CONFIG, sy)
+    assert res3["action"] == "CALLBACK"
+
+
+def test_overload_load_balancing():
+    """MAX - patients over max: an overloaded big hospital loses to an
+    exactly-full smaller one (user-specified formula)."""
+    facs = [dict(f) for f in CONFIG["facilities"]]
+    for f in facs:
+        f["beds_occupied"] = f["total_beds"]
+    adama = next(f for f in facs if f["id"] == "F01")
+    adama["beds_occupied"] = adama["total_beds"] + 5   # score 20-5=15 < Bishoftu 16-0=16
+    res = routing.route("1", "OR-12", ("S01",), facs, CONFIG, SY)
+    assert res["facility"]["id"] == "F02"
+    assert res["action"] == "GO_HOSPITAL"
+    assert res.get("overloaded") is True
 
 
 def test_nonurgent_routes_to_pharmacy(client):
@@ -113,9 +135,19 @@ def test_nonurgent_routes_to_pharmacy(client):
     assert "A:GO_PHARMACY" in r["reply_sms"]
 
 
-def test_urgent_reserves_bed(client):
-    before = next(f for f in server_app.FACILITIES if f["id"] == "F01")["available_beds"]
+def test_accept_and_release_flow(client):
+    fac = next(f for f in server_app.FACILITIES if f["id"] == "F01")
+    before = fac["beds_occupied"]
+
     body = hashing.build_payload(["S01"], "OR-12", "1")
-    client.post("/gateway/sms", json={"sender": "+251900000015", "body": body})
-    after = next(f for f in server_app.FACILITIES if f["id"] == "F01")["available_beds"]
-    assert after == before - 1
+    r = client.post("/gateway/sms", json={"sender": "+251900000015", "body": body}).json()
+    assert fac["beds_occupied"] == before  # routing alone never occupies a bed
+
+    case_id = r["case_id"]
+    assert client.post(f"/api/cases/{case_id}/accept").json()["ok"] is True
+    assert fac["beds_occupied"] == before + 1
+    # double-accept is rejected
+    assert client.post(f"/api/cases/{case_id}/accept").status_code == 409
+
+    assert client.post("/api/facilities/F01/release").json()["ok"] is True
+    assert fac["beds_occupied"] == before

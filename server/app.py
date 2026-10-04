@@ -7,6 +7,7 @@ same code path. Replies come from a fixed template set — never generated text.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
 from pathlib import Path
@@ -14,13 +15,15 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import hashing
 import routing
 
 ROOT = Path(__file__).resolve().parent
-DB_PATH = ROOT / "cases.db"
+# Vercel's filesystem is read-only except /tmp; cases are demo-ephemeral there.
+DB_PATH = Path("/tmp/cases.db") if os.environ.get("VERCEL") else ROOT / "cases.db"
 CASE_TTL_SECONDS = 24 * 3600  # privacy: cases are purged after 24 h
 
 app = FastAPI(title="DoctorFind Gateway")
@@ -53,7 +56,12 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts REAL, sender TEXT, loc TEXT, tier TEXT, codes TEXT,
             action TEXT, facility_id TEXT, reply TEXT,
-            needs_review INTEGER DEFAULT 0, handled INTEGER DEFAULT 0)""")
+            needs_review INTEGER DEFAULT 0, handled INTEGER DEFAULT 0,
+            admitted INTEGER DEFAULT 0)""")
+        try:  # migrate pre-admission databases
+            conn.execute("ALTER TABLE cases ADD COLUMN admitted INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
 
 
 def purge_expired() -> None:
@@ -99,9 +107,7 @@ def gateway_sms(msg: InboundSms) -> dict:
     tier = "A" if payload["tier"] == "A" else compute_tier(codes)  # server-side recompute: safety
     result = routing.route(tier, payload["loc"], codes, FACILITIES, CONFIG, SYMPTOMS)
 
-    if tier == "1" and result["facility"] and result["facility"]["total_beds"]:
-        result["facility"]["available_beds"] = max(0, result["facility"]["available_beds"] - 1)
-
+    # beds change only when staff explicitly accept the patient (human decision)
     case_id = _store(msg.sender, payload["loc"], tier, codes, result)
     reply = routing.build_reply(case_id, result["action"], result["facility"])
     _save_reply(case_id, reply)
@@ -121,17 +127,51 @@ def state() -> dict:
             "symptoms": [f'{SYMPTOMS[c]["emoji"]} {SYMPTOMS[c]["en"]} / {SYMPTOMS[c]["om"]}' for c in codes],
             "action": r["action"], "facility_id": r["facility_id"], "reply": r["reply"],
             "needs_review": bool(r["needs_review"]), "handled": bool(r["handled"]),
+            "admitted": bool(r["admitted"]),
         })
     return {"cases": cases, "facilities": FACILITIES, "actions": list(routing.ACTIONS)}
 
 
 @app.post("/api/facilities/{fac_id}/beds")
 def adjust_beds(fac_id: str, delta: int) -> dict:
+    """Manual occupancy correction (may exceed total: over-capacity = waiting list)."""
     for f in FACILITIES:
         if f["id"] == fac_id:
-            f["available_beds"] = max(0, min(f["total_beds"], f["available_beds"] + delta))
-            return {"ok": True, "available_beds": f["available_beds"]}
+            f["beds_occupied"] = max(0, f["beds_occupied"] + delta)
+            return {"ok": True, "beds_occupied": f["beds_occupied"]}
     raise HTTPException(404, "unknown facility")
+
+
+@app.post("/api/facilities/{fac_id}/release")
+def release_patient(fac_id: str) -> dict:
+    """'Patient released' button: frees one bed."""
+    for f in FACILITIES:
+        if f["id"] == fac_id:
+            if f["beds_occupied"] <= 0:
+                raise HTTPException(409, "no occupied beds")
+            f["beds_occupied"] -= 1
+            return {"ok": True, "beds_occupied": f["beds_occupied"]}
+    raise HTTPException(404, "unknown facility")
+
+
+@app.post("/api/cases/{case_id}/accept")
+def accept_case(case_id: int) -> dict:
+    """Staff accepts an inbound patient. Accepting while full is allowed:
+    occupancy goes over total = the patient is on the waiting list."""
+    with db() as conn:
+        row = conn.execute("SELECT facility_id, admitted FROM cases WHERE id=?", (case_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "unknown case")
+    if row["admitted"]:
+        raise HTTPException(409, "already admitted")
+    fac = next((f for f in FACILITIES if f["id"] == row["facility_id"]), None)
+    if fac is None or not fac["total_beds"]:
+        raise HTTPException(400, "case not routed to a bed facility")
+    fac["beds_occupied"] += 1
+    with db() as conn:
+        conn.execute("UPDATE cases SET admitted=1, handled=1 WHERE id=?", (case_id,))
+    return {"ok": True, "beds_occupied": fac["beds_occupied"],
+            "waitlisted": fac["beds_occupied"] > fac["total_beds"]}
 
 
 @app.post("/api/cases/{case_id}/resolve")
@@ -165,6 +205,12 @@ def reset() -> dict:
 @app.get("/", response_class=HTMLResponse)
 def dashboard() -> str:
     return (ROOT / "dashboard.html").read_text(encoding="utf-8")
+
+
+# Patient-app web build (the "simulator" version), if exported:
+#   cd app; npx expo export --platform web --output-dir ../server/patient-web
+if (ROOT / "patient-web").exists():
+    app.mount("/patient", StaticFiles(directory=ROOT / "patient-web", html=True), name="patient")
 
 
 def _store(sender: str, loc: str, tier: str, codes: tuple[str, ...], result: dict) -> int:

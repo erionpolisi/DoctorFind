@@ -44,16 +44,16 @@ export function parseReply(sms: string): Reply | null {
 }
 
 export const ACTION_UI: Record<string, { om: string; en: string; color: string; icon: string }> = {
-  GO_HOSPITAL: { om: "HOSPITAALA DHAQI — AMMA!", en: "Go to the hospital NOW", color: "#ff5d5d", icon: "🏥" },
-  GO_CLINIC: { om: "Buufata fayyaa dhaqi — har'a", en: "Go to the health center today", color: "#ffb84d", icon: "🏥" },
-  GO_PHARMACY: { om: "Mana qorichaa dhaqi", en: "Visit the pharmacy", color: "#58d68d", icon: "💊" },
-  ASK_PERSON: { om: "Hin mirkanoofne — nama gaafadhu", en: "Not sure — ask a person", color: "#b48cff", icon: "🧑‍⚕️" },
-  CALLBACK: { om: "Ogeessi fayyaa si bilbila", en: "A health worker will call you", color: "#b48cff", icon: "📞" },
+  GO_HOSPITAL: { om: "HOSPITAALA DHAQI — AMMA!", en: "Go to the hospital NOW", color: "#dc2626", icon: "🏥" },
+  GO_CLINIC: { om: "Buufata fayyaa dhaqi — har'a", en: "Go to the health center today", color: "#d97706", icon: "🏥" },
+  GO_PHARMACY: { om: "Mana qorichaa dhaqi", en: "Visit the pharmacy", color: "#16a34a", icon: "💊" },
+  ASK_PERSON: { om: "Hin mirkanoofne — nama gaafadhu", en: "Not sure — ask a person", color: "#7c3aed", icon: "🧑‍⚕️" },
+  CALLBACK: { om: "Ogeessi fayyaa si bilbila", en: "A health worker will call you", color: "#7c3aed", icon: "📞" },
 };
 
-export const TIER_UI: Record<Tier, { label: string; om: string; color: string }> = {
-  "1": { label: "URGENT", om: "HATATTAMA", color: "#ff5d5d" },
-  "2": { label: "Clinic today", om: "Har'a buufata fayyaa", color: "#ffb84d" },
-  "3": { label: "Pharmacy / self-care", om: "Mana qorichaa", color: "#58d68d" },
-  "A": { label: "Ask a person", om: "Nama gaafadhu", color: "#b48cff" },
+export const TIER_UI: Record<Tier, { om: string; en: string; color: string }> = {
+  "1": { en: "URGENT", om: "HATATTAMA", color: "#dc2626" },
+  "2": { en: "Clinic today", om: "Har'a buufata fayyaa", color: "#d97706" },
+  "3": { en: "Pharmacy / self-care", om: "Mana qorichaa", color: "#16a34a" },
+  "A": { en: "Ask a person", om: "Nama gaafadhu", color: "#7c3aed" },
 };

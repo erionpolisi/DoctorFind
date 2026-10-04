@@ -1,64 +1,114 @@
-// DoctorFind — offline-first patient app (Afaan Oromoo).
-// Capture symptoms (pictograms for non-readers + free text) -> on-device Small
-// AI -> deterministic triage -> PII-free hashed payload -> SMS (real composer
-// or demo gateway channel) -> fixed-template routing reply.
-// No diagnosis. Low confidence => "Hin mirkanoofne — nama gaafadhu".
+// DoctorFind — offline-first patient app. Afaan Oromoo first, EN toggle.
+// Simple by design: one question, pictograms, voice/text, two send paths.
+// No diagnosis; low confidence => "ask a person" (human review).
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Linking, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
+  Animated, Easing, Linking, Platform, Pressable, ScrollView, StatusBar,
+  StyleSheet, Text, TextInput, View,
 } from "react-native";
 import * as SMS from "expo-sms";
 import * as Speech from "expo-speech";
 
 import { predictSymptoms } from "./src/lib/classifier";
+import { Lang, t } from "./src/lib/i18n";
+import { sttAvailable, startStt, SttHandle } from "./src/lib/stt";
+import { speakSmart } from "./src/lib/tts";
 import {
   ACTION_UI, BY_CODE, buildPayload, computeTier, MAX_SELECTED, parseReply,
   Reply, SYMPTOMS, Tier, TIER_UI,
 } from "./src/lib/triage";
 
-type Screen = "consent" | "select" | "confirm" | "reply";
+type Screen = "consent" | "home" | "confirm" | "reply";
 
-const DEFAULT_GATEWAY_URL = "http://192.168.0.100:8000";
+const DEFAULT_GATEWAY_URL = Platform.OS === "web" && typeof window !== "undefined"
+  ? window.location.origin
+  : "http://192.168.0.100:8000";
 const DEFAULT_GATEWAY_PHONE = "+251900000000";
-const LOC_ID = "OR-12"; // coarse location cell: village-level, never GPS
+const LOC_ID = "OR-12"; // coarse village cell — never GPS
 
 export default function App() {
+  const [lang, setLang] = useState<Lang>("om");
   const [screen, setScreen] = useState<Screen>("consent");
+  const [showSettings, setShowSettings] = useState(false);
   const [gatewayUrl, setGatewayUrl] = useState(DEFAULT_GATEWAY_URL);
   const [gatewayPhone, setGatewayPhone] = useState(DEFAULT_GATEWAY_PHONE);
+  const [smsPossible, setSmsPossible] = useState(false);
+
   const [selected, setSelected] = useState<string[]>([]);
   const [freeText, setFreeText] = useState("");
   const [aiNote, setAiNote] = useState<string | null>(null);
   const [ambiguous, setAmbiguous] = useState(false);
   const [payload, setPayload] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
   const [reply, setReply] = useState<Reply | null>(null);
   const [sentViaRealSms, setSentViaRealSms] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const [listening, setListening] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const sttRef = useRef<SttHandle | null>(null);
+  const baseTextRef = useRef("");
+  const mutedRef = useRef(false);
+  const pulse = useRef(new Animated.Value(1)).current;
+  mutedRef.current = muted;
+
+  useEffect(() => { SMS.isAvailableAsync().then(setSmsPossible).catch(() => setSmsPossible(false)); }, []);
+
+  useEffect(() => {
+    if (!listening) { pulse.setValue(1); return; }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 1.6, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 1, duration: 500, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [listening, pulse]);
 
   const tier: Tier = ambiguous && selected.length === 0 ? "A" : computeTier(selected);
 
   const speak = (om: string, en: string) => {
-    // Honest gap: few Android builds ship an Oromo TTS voice. Try `om`, else
-    // read the English line. Pictograms + color remain the no-audio channel.
-    Speech.stop();
-    Speech.speak(om, { language: "om", onError: () => Speech.speak(en, { language: "en" }) });
+    if (mutedRef.current) return;
+    void speakSmart(lang === "om" ? om : en, lang);
   };
 
-  const runClassifier = () => {
-    const p = predictSymptoms(freeText);
+  // ---------------------------------------------------------------- AI
+  const runClassifier = (text: string) => {
+    const p = predictSymptoms(text);
     setAmbiguous(p.ambiguous);
     if (p.ambiguous && p.codes.length === 0) {
-      setAiNote("🧑‍⚕️ Hin mirkanoofne — nama gaafadhu.\n(AI not sure — this will go to a person.)");
+      setAiNote(`🧑‍⚕️ ${t(lang, "aiUnsure")}`);
       return;
     }
     const merged = [...new Set([...selected, ...p.codes])].slice(0, MAX_SELECTED);
     setSelected(merged);
     setAiNote(
-      (p.ambiguous ? "⚠️ Gartokko hin hubatamne — namni ilaala. (Partly unclear — a person will review.)\n" : "") +
-      "AI hubate: " + p.codes.map(c => `${BY_CODE[c].emoji} ${BY_CODE[c].om}`).join(", ") +
-      `  (sim ${p.confidence.toFixed(2)})`
+      (p.ambiguous ? `⚠️ ${t(lang, "aiPartial")}\n` : "") +
+      `${t(lang, "aiFound")} ` + p.codes.map(c => `${BY_CODE[c].emoji} ${BY_CODE[c][lang]}`).join(", ")
     );
+  };
+
+  // ---------------------------------------------------------------- STT
+  const toggleMic = async () => {
+    if (listening) { sttRef.current?.stop(); setListening(false); return; }
+    if (!sttAvailable()) { setNotice(t(lang, "sttUnavailable")); return; }
+    setNotice(null);
+    baseTextRef.current = freeText.trim() ? freeText.trim() + " " : "";
+    sttRef.current = await startStt(lang, {
+      onStart: () => setListening(true),
+      onPartial: (text) => setFreeText(baseTextRef.current + text),
+      onFinal: (text) => { setFreeText(baseTextRef.current + text); runClassifier(baseTextRef.current + text); },
+      onEnd: () => setListening(false),
+      onError: (kind) => {
+        setListening(false);
+        const key = kind === "unavailable" ? "sttUnavailable"
+          : kind === "permission" ? "sttPermission"
+          : kind === "insecure" ? "sttInsecure"
+          : kind === "network" ? "sttNetwork" : "sttError";
+        setNotice(t(lang, key));
+      },
+      onInfo: (kind) => { if (kind === "enFallback") setNotice(t(lang, "sttEnFallback")); },
+    });
   };
 
   const toggle = (code: string) =>
@@ -66,28 +116,29 @@ export default function App() {
       : s.length >= MAX_SELECTED ? s : [...s, code]);
 
   const goConfirm = async () => {
-    const p = await buildPayload(selected, LOC_ID, tier);
-    setPayload(p);
-    setSendError(null);
+    sttRef.current?.stop();
+    setPayload(await buildPayload(selected, LOC_ID, tier));
+    setNotice(null);
     setScreen("confirm");
   };
 
+  // ---------------------------------------------------------------- send
   const sendRealSms = async () => {
     setSentViaRealSms(true);
     if (await SMS.isAvailableAsync()) {
-      await SMS.sendSMSAsync([gatewayPhone], payload); // opens composer: user confirms, works with SIM only
+      await SMS.sendSMSAsync([gatewayPhone], payload);
       setReply(null);
       setScreen("reply");
     } else {
-      setSendError("SMS composer not available on this device (emulator?). Use the demo channel.");
+      setNotice(t(lang, "smsUnavailable"));
     }
   };
 
   const sendDemoChannel = async () => {
     setSentViaRealSms(false);
-    setSendError(null);
+    setNotice(null);
     try {
-      const res = await fetch(`${gatewayUrl}/gateway/sms`, {
+      const res = await fetch(`${gatewayUrl.replace(/\/$/, "")}/gateway/sms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sender: "demo-phone", body: payload }),
@@ -96,82 +147,116 @@ export default function App() {
       const r = parseReply(data.reply_sms);
       setReply(r);
       setScreen("reply");
-      if (r) {
-        const ui = ACTION_UI[r.action];
-        if (ui) speak(ui.om, ui.en);
-      }
+      if (r && ACTION_UI[r.action]) speak(ACTION_UI[r.action].om, ACTION_UI[r.action].en);
     } catch {
-      // store-and-forward spirit: payload stays; SMS path still works offline
-      setSendError("Demo channel unreachable — payload kept. Use 'Ergi SMS' (works without internet).");
+      setNotice(t(lang, "demoUnreachable"));
     }
   };
 
   const resetAll = () => {
     setSelected([]); setFreeText(""); setAiNote(null); setAmbiguous(false);
-    setPayload(""); setReply(null); setSendError(null); setScreen("select");
+    setPayload(""); setReply(null); setNotice(null); setShowDetails(false); setScreen("home");
   };
 
-  // ------------------------------------------------------------- screens
+  // ---------------------------------------------------------------- chrome
+  const LangToggle = (
+    <Pressable style={st.langBtn} onPress={() => setLang(l => (l === "om" ? "en" : "om"))}>
+      <Text style={st.langBtnText}>{lang === "om" ? "EN" : "OM"}</Text>
+    </Pressable>
+  );
+
+  const MuteToggle = (
+    <Pressable
+      style={[st.langBtn, muted && { backgroundColor: "#fef2f2", borderColor: "#dc2626" }]}
+      onPress={() => { if (!muted) Speech.stop(); setMuted(m => !m); }}>
+      <Text style={st.langBtnText}>{muted ? "🔇" : "🔊"}</Text>
+    </Pressable>
+  );
+
+  const Header = (
+    <View style={st.header}>
+      <View style={st.brandDot}><Text style={st.brandDotText}>✚</Text></View>
+      <Text style={st.brand}>{t(lang, "appName")}</Text>
+      <View style={{ flex: 1 }} />
+      {screen === "consent" && (
+        <Pressable style={st.gear} onPress={() => setShowSettings(s => !s)}><Text style={{ fontSize: 18 }}>⚙️</Text></Pressable>
+      )}
+      {MuteToggle}
+      {LangToggle}
+    </View>
+  );
+
+  // ---------------------------------------------------------------- screens
   if (screen === "consent") {
     return (
-      <Shell>
-        <Text style={st.logo}>🏥 DoctorFind</Text>
-        <Text style={st.subtitle}>Gargaarsa fayyaa — SMS qofaan{"\n"}(Health routing over SMS only)</Text>
-        <Card>
-          <Text style={st.h2}>Eeyyama (Consent)</Text>
-          <Text style={st.body}>
-            Appiin kun mallattoo dhukkubaa kee lakkoofsa iccitiidhaan (hash) gara buufata fayyaa
-            ergiti. Maqaan kee, lakkoofsi kee, bakki kee sirriin HIN ergamu.{"\n\n"}
-            Your symptoms are sent as an anonymous code. No name, no phone number, no exact
-            location ever leaves this phone. A health worker makes the final decision.{"\n\n"}
-            ⚠️ Appiin kun QORANNOO MITI — dhukkuba hin himu. (This app does NOT diagnose.)
-          </Text>
-        </Card>
-        <Big color="#58d68d" onPress={() => { speak("Baga nagaan dhufte. Mallattoo kee filadhu.", "Welcome. Choose your symptoms."); setScreen("select"); }}>
-          ✓ Eeyyee — ittan fufa{"\n"}(Yes — continue)
+      <Shell header={Header}>
+        <Text style={st.hero}>🏥</Text>
+        <Text style={st.heroTitle}>{t(lang, "appName")}</Text>
+        <Text style={st.heroSub}>{t(lang, "tagline")}</Text>
+        <View style={st.card}>
+          <Text style={st.cardTitle}>{t(lang, "consentTitle")}</Text>
+          <Text style={st.body}>{t(lang, "consentBody")}</Text>
+        </View>
+        <Big color="#0f766e" onPress={() => { speak("Baga nagaan dhufte", "Welcome"); setScreen("home"); }}>
+          {t(lang, "consentYes")}
         </Big>
-        <Card>
-          <Text style={st.h2}>⚙ Demo settings</Text>
-          <Text style={st.label}>Gateway URL (laptop LAN IP)</Text>
-          <TextInput style={st.input} value={gatewayUrl} onChangeText={setGatewayUrl}
-            autoCapitalize="none" autoCorrect={false} />
-          <Text style={st.label}>Gateway SMS number</Text>
-          <TextInput style={st.input} value={gatewayPhone} onChangeText={setGatewayPhone}
-            autoCapitalize="none" autoCorrect={false} keyboardType="phone-pad" />
-        </Card>
+        {showSettings && (
+          <View style={st.card}>
+            <Text style={st.cardTitle}>⚙ {t(lang, "settings")}</Text>
+            <Text style={st.label}>{t(lang, "gatewayUrl")}</Text>
+            <TextInput style={st.input} value={gatewayUrl} onChangeText={setGatewayUrl}
+              autoCapitalize="none" autoCorrect={false} />
+            <Text style={st.label}>{t(lang, "gatewayPhone")}</Text>
+            <TextInput style={st.input} value={gatewayPhone} onChangeText={setGatewayPhone}
+              autoCapitalize="none" keyboardType="phone-pad" />
+          </View>
+        )}
       </Shell>
     );
   }
 
-  if (screen === "select") {
+  if (screen === "home") {
     return (
-      <Shell>
-        <Text style={st.h1}>Maal si dhukkuba?{"\n"}<Text style={st.en}>(What hurts?)</Text></Text>
+      <Shell header={Header}>
+        <Text style={st.question}>{t(lang, "whatHurts")}</Text>
 
-        <Card>
-          <Text style={st.label}>Barreessi ykn dubbadhu (type in Afaan Oromoo):</Text>
+        <View style={st.inputRow}>
           <TextInput
-            style={[st.input, { minHeight: 44 }]}
-            placeholder='fkn: "mataan na dhukkuba fi qaamni na gubaa"'
-            placeholderTextColor="#5a6a85"
-            value={freeText} onChangeText={setFreeText} multiline
+            style={st.textInput}
+            placeholder={t(lang, "placeholder")}
+            placeholderTextColor="#94a3b8"
+            value={freeText}
+            onChangeText={setFreeText}
+            multiline
           />
-          <Big small color="#4da3ff" onPress={runClassifier}>🤖 Hubadhu (AI: understand)</Big>
-          {aiNote && <Text style={[st.body, { marginTop: 8 }]}>{aiNote}</Text>}
-        </Card>
+          <Pressable style={[st.micBtn, listening && st.micBtnOn]} onPress={toggleMic}>
+            {listening
+              ? <Animated.View style={[st.micPulse, { transform: [{ scale: pulse }] }]} />
+              : null}
+            <Text style={st.micIcon}>🎙️</Text>
+          </Pressable>
+        </View>
+        {listening && (
+          <View style={st.listenBar}>
+            <Animated.View style={[st.redDot, { transform: [{ scale: pulse }] }]} />
+            <Text style={st.listenText}>{t(lang, "listening")}</Text>
+          </View>
+        )}
+        {!!freeText.trim() && !listening && (
+          <Big small color="#1d4ed8" onPress={() => runClassifier(freeText)}>🤖 {t(lang, "aiButton")}</Big>
+        )}
+        {aiNote && <Text style={st.aiNote}>{aiNote}</Text>}
+        {notice && <Text style={st.notice}>{notice}</Text>}
 
-        <Text style={st.label}>
-          ykn suuraa tuqi — hanga {MAX_SELECTED} (or tap pictures, up to {MAX_SELECTED}):
-        </Text>
+        <Text style={st.orTap}>{t(lang, "orTap")} (max {MAX_SELECTED})</Text>
         <View style={st.grid}>
           {SYMPTOMS.map(s => {
             const on = selected.includes(s.code);
             return (
               <Pressable key={s.code} onPress={() => { toggle(s.code); speak(s.om, s.en); }}
-                style={[st.cell, on && { borderColor: TIER_UI[String(s.severity) as Tier]?.color ?? "#4da3ff", backgroundColor: "#1d2b45" }]}>
+                style={[st.cell, on && { borderColor: TIER_UI[String(s.severity) as Tier].color, backgroundColor: "#f0fdfa" }]}>
                 <Text style={st.emoji}>{s.emoji}</Text>
-                <Text style={st.om}>{s.om}</Text>
-                <Text style={st.enSmall}>{s.en}</Text>
+                <Text style={st.cellLabel} numberOfLines={2}>{s[lang]}</Text>
               </Pressable>
             );
           })}
@@ -179,12 +264,11 @@ export default function App() {
 
         {(selected.length > 0 || (ambiguous && freeText)) && (
           <View style={[st.tierBar, { backgroundColor: TIER_UI[tier].color }]}>
-            <Text style={st.tierText}>{TIER_UI[tier].om} · {TIER_UI[tier].label}</Text>
+            <Text style={st.tierText}>{TIER_UI[tier][lang]}</Text>
           </View>
         )}
-        <Big color="#58d68d" disabled={selected.length === 0 && !(ambiguous && freeText)}
-          onPress={goConfirm}>
-          Itti fufi ▸ (Continue)
+        <Big color="#0f766e" disabled={selected.length === 0 && !(ambiguous && freeText)} onPress={goConfirm}>
+          {t(lang, "continueBtn")}
         </Big>
       </Shell>
     );
@@ -192,151 +276,208 @@ export default function App() {
 
   if (screen === "confirm") {
     return (
-      <Shell>
-        <Text style={st.h1}>Mirkaneessi <Text style={st.en}>(Confirm)</Text></Text>
-        <Card>
+      <Shell header={Header}>
+        <Text style={st.question}>{t(lang, "confirm")}</Text>
+
+        <View style={st.card}>
           {selected.length === 0
-            ? <Text style={st.body}>🧑‍⚕️ Hin mirkanoofne — namatu ilaala.{"\n"}(Unclear input — a person will review it.)</Text>
-            : selected.map(c => (
-              <Text key={c} style={st.confirmRow}>
-                {BY_CODE[c].emoji}  {BY_CODE[c].om}  <Text style={st.enSmall}>({BY_CODE[c].en})</Text>
-              </Text>
-            ))}
-          <View style={[st.tierBar, { backgroundColor: TIER_UI[tier].color, marginTop: 10 }]}>
-            <Text style={st.tierText}>{TIER_UI[tier].om} · {TIER_UI[tier].label}</Text>
+            ? <Text style={st.body}>🧑‍⚕️ {t(lang, "unclearReview")}</Text>
+            : (
+              <View style={st.chips}>
+                {selected.map(c => (
+                  <View key={c} style={st.chip}>
+                    <Text style={st.chipText}>{BY_CODE[c].emoji} {BY_CODE[c][lang]}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          <View style={[st.tierBar, { backgroundColor: TIER_UI[tier].color, marginTop: 12 }]}>
+            <Text style={st.tierText}>{TIER_UI[tier][lang]}</Text>
           </View>
-        </Card>
+          <Text style={st.privacyNote}>🔒 {t(lang, "smsNote")}</Text>
+        </View>
 
-        <Card>
-          <Text style={st.h2}>📡 Ergaa SMS (≤160, PII hin qabu / no PII)</Text>
-          <Text style={st.payload}>{payload}</Text>
-          <Text style={st.enSmall}>
-            Hash = symptom codes only. Name/phone/GPS never sent. Loc = village cell {LOC_ID}.
-          </Text>
-        </Card>
+        {smsPossible && <Big color="#0f766e" onPress={sendRealSms}>{t(lang, "sendSms")}</Big>}
+        <Big color="#1d4ed8" onPress={sendDemoChannel}>{t(lang, "sendDemo")}</Big>
+        {notice && <Text style={st.notice}>{notice}</Text>}
 
-        <Big small color="#b48cff" onPress={() =>
-          speak(
-            "Mallattoo kee: " + selected.map(c => BY_CODE[c].om).join(", "),
-            "Your symptoms: " + selected.map(c => BY_CODE[c].en).join(", ")
-          )}>
-          🔊 Dubbisi (Speak)
-        </Big>
-        <Big color="#58d68d" onPress={sendRealSms}>📨 Ergi — SMS dhugaa{"\n"}(Send via real SMS)</Big>
-        <Big color="#4da3ff" onPress={sendDemoChannel}>🛰 Ergi — Demo channel{"\n"}(simulated SMS gateway)</Big>
-        {sendError && <Text style={st.error}>{sendError}</Text>}
-        <Big small color="#223052" onPress={() => setScreen("select")}>◂ Deebi'i (Back)</Big>
+        <View style={st.rowButtons}>
+          <Big small color="#e2e8f0" dark onPress={() => setScreen("home")}>{t(lang, "back")}</Big>
+          <Big small color="#e2e8f0" dark onPress={() =>
+            speak(selected.map(c => BY_CODE[c].om).join(", "), selected.map(c => BY_CODE[c].en).join(", "))}>
+            {t(lang, "speak")}
+          </Big>
+          <Big small color="#e2e8f0" dark onPress={() => setShowDetails(d => !d)}>ℹ️</Big>
+        </View>
+        {showDetails && (
+          <View style={st.card}>
+            <Text style={st.cardTitle}>{t(lang, "details")}</Text>
+            <Text style={st.payload}>{payload}</Text>
+          </View>
+        )}
       </Shell>
     );
   }
 
-  // reply screen
+  // reply
   const ui = reply ? ACTION_UI[reply.action] : null;
   return (
-    <Shell>
-      <Text style={st.h1}>Deebii <Text style={st.en}>(Reply)</Text></Text>
+    <Shell header={Header}>
+      <Text style={st.question}>{t(lang, "reply")}</Text>
       {sentViaRealSms && !reply ? (
-        <Card>
-          <Text style={st.h2}>📨 SMS ergameera (SMS sent)</Text>
-          <Text style={st.body}>
-            Deebiin karaa SMS dhufa — appiin kun interneetii hin barbaadu.{"\n"}
-            (The routing reply arrives as a normal SMS. No internet needed — this is the point.)
-          </Text>
-        </Card>
+        <View style={st.card}>
+          <Text style={st.cardTitle}>{t(lang, "smsSent")}</Text>
+          <Text style={st.body}>{t(lang, "smsSentNote")}</Text>
+        </View>
       ) : reply && ui ? (
         <>
           <View style={[st.replyCard, { borderColor: ui.color }]}>
             <Text style={st.replyIcon}>{ui.icon}</Text>
-            <Text style={[st.replyAction, { color: ui.color }]}>{ui.om}</Text>
-            <Text style={st.body}>{ui.en}</Text>
+            <Text style={[st.replyAction, { color: ui.color }]}>{lang === "om" ? ui.om : ui.en}</Text>
             <Text style={st.replyFacility}>{reply.name}</Text>
-            <Pressable onPress={() => Linking.openURL(`tel:${reply.phone}`)}>
-              <Text style={st.phone}>📞 {reply.phone} — tuqi bilbiluuf (tap to call)</Text>
+            <Pressable style={[st.callBtn, { backgroundColor: ui.color }]} onPress={() => Linking.openURL(`tel:${reply.phone}`)}>
+              <Text style={st.callBtnText}>📞 {reply.phone}</Text>
+              <Text style={st.callBtnSub}>{t(lang, "call")}</Text>
             </Pressable>
           </View>
-          <Big small color="#b48cff" onPress={() => speak(ui.om, ui.en)}>🔊 Irra deebi'i (Repeat)</Big>
-          <Card>
-            <Text style={st.enSmall}>Raw SMS: {`R:${reply.caseId};N:${reply.name};P:${reply.phone};A:${reply.action};M:${reply.message}`}</Text>
-          </Card>
+          <Big small color="#e2e8f0" dark onPress={() => speak(ui.om, ui.en)}>{t(lang, "speak")}</Big>
         </>
       ) : (
-        <Card><Text style={st.body}>Deebiin hin jiru (no reply parsed).</Text></Card>
+        <View style={st.card}><Text style={st.body}>{t(lang, "noReply")}</Text></View>
       )}
-      <Big color="#223052" onPress={resetAll}>⟲ Kaasaa haaraa (New case)</Big>
+      <Big color="#0f766e" onPress={resetAll}>{t(lang, "newCase")}</Big>
     </Shell>
   );
 }
 
 // ------------------------------------------------------------- UI helpers
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children, header }: { children: React.ReactNode; header: React.ReactNode }) {
   return (
     <View style={st.root}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
+      {header}
       <ScrollView contentContainerStyle={st.scroll}>{children}</ScrollView>
     </View>
   );
 }
-function Card({ children }: { children: React.ReactNode }) {
-  return <View style={st.card}>{children}</View>;
-}
-function Big({ children, onPress, color, disabled, small }: {
+function Big({ children, onPress, color, disabled, small, dark }: {
   children: React.ReactNode; onPress: () => void; color: string;
-  disabled?: boolean; small?: boolean;
+  disabled?: boolean; small?: boolean; dark?: boolean;
 }) {
   return (
     <Pressable onPress={onPress} disabled={disabled}
       style={({ pressed }) => [
         st.big, small && st.bigSmall,
-        { backgroundColor: color, opacity: disabled ? 0.35 : pressed ? 0.8 : 1 },
+        { backgroundColor: color, opacity: disabled ? 0.4 : pressed ? 0.85 : 1 },
       ]}>
-      <Text style={[st.bigText, small && { fontSize: 15 }]}>{children}</Text>
+      <Text style={[st.bigText, small && { fontSize: 14 }, dark && { color: "#15213b" }]}>{children}</Text>
     </Pressable>
   );
 }
 
 const st = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0e1420" },
-  scroll: { padding: 16, paddingTop: 52, paddingBottom: 40 },
-  logo: { fontSize: 34, fontWeight: "800", color: "#e8edf6", textAlign: "center" },
-  subtitle: { color: "#8b97ad", textAlign: "center", marginVertical: 10, fontSize: 15 },
-  h1: { fontSize: 24, fontWeight: "800", color: "#e8edf6", marginBottom: 12 },
-  h2: { fontSize: 16, fontWeight: "700", color: "#e8edf6", marginBottom: 6 },
-  en: { color: "#8b97ad", fontSize: 16, fontWeight: "400" },
-  enSmall: { color: "#8b97ad", fontSize: 11 },
-  body: { color: "#cdd6e4", fontSize: 14, lineHeight: 20 },
-  label: { color: "#8b97ad", fontSize: 13, marginBottom: 4, marginTop: 8 },
-  input: {
-    backgroundColor: "#171f2f", borderColor: "#263148", borderWidth: 1, borderRadius: 8,
-    color: "#e8edf6", padding: 10, fontSize: 15,
+  root: { flex: 1, backgroundColor: "#f4f6fa" },
+  header: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 16, paddingTop: 48, paddingBottom: 12,
+    backgroundColor: "#ffffff", borderBottomWidth: 1, borderBottomColor: "#e3e8f0",
   },
+  brandDot: { width: 30, height: 30, borderRadius: 8, backgroundColor: "#0f766e", alignItems: "center", justifyContent: "center" },
+  brandDotText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  brand: { fontSize: 17, fontWeight: "800", color: "#15213b" },
+  gear: { padding: 6 },
+  langBtn: {
+    borderWidth: 1.5, borderColor: "#0f766e", borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 5, backgroundColor: "#f0fdfa",
+  },
+  langBtnText: { color: "#0f766e", fontWeight: "800", fontSize: 13 },
+  scroll: { padding: 16, paddingBottom: 48 },
+
+  hero: { fontSize: 56, textAlign: "center", marginTop: 18 },
+  heroTitle: { fontSize: 30, fontWeight: "800", color: "#15213b", textAlign: "center" },
+  heroSub: { color: "#64748b", textAlign: "center", marginTop: 4, marginBottom: 14, fontSize: 15 },
+
+  question: { fontSize: 24, fontWeight: "800", color: "#15213b", marginVertical: 10 },
   card: {
-    backgroundColor: "#171f2f", borderColor: "#263148", borderWidth: 1, borderRadius: 12,
-    padding: 14, marginVertical: 8,
+    backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#e3e8f0", borderRadius: 14,
+    padding: 16, marginVertical: 8,
   },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 },
+  cardTitle: { fontSize: 15, fontWeight: "700", color: "#15213b", marginBottom: 6 },
+  body: { color: "#334155", fontSize: 14.5, lineHeight: 21 },
+  label: { color: "#64748b", fontSize: 12.5, marginTop: 10, marginBottom: 4 },
+  input: {
+    backgroundColor: "#f8fafc", borderColor: "#e3e8f0", borderWidth: 1, borderRadius: 10,
+    color: "#15213b", padding: 10, fontSize: 14,
+  },
+
+  inputRow: { flexDirection: "row", gap: 10, alignItems: "stretch" },
+  textInput: {
+    flex: 1, backgroundColor: "#ffffff", borderColor: "#e3e8f0", borderWidth: 1, borderRadius: 14,
+    color: "#15213b", padding: 14, fontSize: 16, minHeight: 56,
+  },
+  micBtn: {
+    width: 56, borderRadius: 14, backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#e3e8f0",
+    alignItems: "center", justifyContent: "center",
+  },
+  micBtnOn: { borderColor: "#dc2626", backgroundColor: "#fef2f2" },
+  micIcon: { fontSize: 24 },
+  micPulse: {
+    position: "absolute", width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(220,38,38,0.18)",
+  },
+  listenBar: {
+    flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10,
+    backgroundColor: "#fef2f2", borderColor: "#fecaca", borderWidth: 1, borderRadius: 10, padding: 10,
+  },
+  redDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#dc2626" },
+  listenText: { color: "#b91c1c", fontWeight: "700", fontSize: 14 },
+
+  aiNote: {
+    color: "#334155", fontSize: 14, marginTop: 10, backgroundColor: "#f0fdfa",
+    borderColor: "#99f6e4", borderWidth: 1, borderRadius: 10, padding: 10, lineHeight: 20,
+  },
+  notice: {
+    color: "#b91c1c", fontSize: 13, marginTop: 10, backgroundColor: "#fef2f2",
+    borderColor: "#fecaca", borderWidth: 1, borderRadius: 10, padding: 10,
+  },
+  orTap: { color: "#64748b", fontSize: 13, marginTop: 16, marginBottom: 8 },
+
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   cell: {
-    width: "31%", backgroundColor: "#171f2f", borderColor: "#263148", borderWidth: 2,
-    borderRadius: 12, alignItems: "center", paddingVertical: 10, paddingHorizontal: 4,
+    width: "23.3%", backgroundColor: "#ffffff", borderColor: "#e3e8f0", borderWidth: 2,
+    borderRadius: 12, alignItems: "center", paddingVertical: 10, paddingHorizontal: 2, minHeight: 78,
   },
-  emoji: { fontSize: 30 },
-  om: { color: "#e8edf6", fontSize: 12, fontWeight: "700", textAlign: "center", marginTop: 4 },
-  tierBar: { borderRadius: 8, padding: 10, marginTop: 12 },
-  tierText: { color: "#10131a", fontWeight: "800", textAlign: "center", fontSize: 15 },
-  big: { borderRadius: 12, padding: 16, marginTop: 12 },
-  bigSmall: { padding: 10, marginTop: 8 },
-  bigText: { color: "#10131a", fontWeight: "800", fontSize: 18, textAlign: "center" },
+  emoji: { fontSize: 26 },
+  cellLabel: { color: "#15213b", fontSize: 10.5, fontWeight: "700", textAlign: "center", marginTop: 4 },
+
+  tierBar: { borderRadius: 10, padding: 11, marginTop: 14 },
+  tierText: { color: "#ffffff", fontWeight: "800", textAlign: "center", fontSize: 15 },
+
+  big: { borderRadius: 14, padding: 16, marginTop: 12 },
+  bigSmall: { padding: 10, marginTop: 8, flex: 1 },
+  bigText: { color: "#ffffff", fontWeight: "800", fontSize: 17, textAlign: "center" },
+  rowButtons: { flexDirection: "row", gap: 8 },
+
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    backgroundColor: "#f0fdfa", borderColor: "#99f6e4", borderWidth: 1,
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
+  },
+  chipText: { color: "#134e4a", fontWeight: "700", fontSize: 14 },
+  privacyNote: { color: "#64748b", fontSize: 12, marginTop: 10 },
   payload: {
-    color: "#9fe8c8", fontFamily: "monospace", fontSize: 14, backgroundColor: "#0e1420",
-    padding: 10, borderRadius: 8, marginVertical: 6,
+    color: "#0f766e", fontFamily: Platform.OS === "web" ? "monospace" : "monospace",
+    fontSize: 13, backgroundColor: "#f8fafc", padding: 10, borderRadius: 8,
   },
-  confirmRow: { color: "#e8edf6", fontSize: 18, marginVertical: 3 },
+
   replyCard: {
-    backgroundColor: "#171f2f", borderWidth: 3, borderRadius: 16, padding: 20,
+    backgroundColor: "#ffffff", borderWidth: 3, borderRadius: 18, padding: 22,
     alignItems: "center", marginVertical: 10,
   },
   replyIcon: { fontSize: 52 },
   replyAction: { fontSize: 22, fontWeight: "900", textAlign: "center", marginVertical: 8 },
-  replyFacility: { color: "#e8edf6", fontSize: 20, fontWeight: "700", marginTop: 10, textAlign: "center" },
-  phone: { color: "#4da3ff", fontSize: 17, fontWeight: "700", marginTop: 8 },
-  error: { color: "#ff5d5d", marginTop: 8, fontSize: 13 },
+  replyFacility: { color: "#15213b", fontSize: 19, fontWeight: "700", textAlign: "center" },
+  callBtn: { borderRadius: 14, paddingVertical: 12, paddingHorizontal: 22, marginTop: 14, alignItems: "center" },
+  callBtnText: { color: "#fff", fontWeight: "800", fontSize: 17 },
+  callBtnSub: { color: "rgba(255,255,255,0.85)", fontSize: 11.5, marginTop: 2 },
 });

@@ -2,118 +2,261 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>DoctorFind — Hospital Dashboard</title>
+<title>DoctorFind — Facility Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  :root { --bg:#0e1420; --card:#171f2f; --line:#263148; --txt:#e8edf6; --dim:#8b97ad;
-          --t1:#ff5d5d; --t2:#ffb84d; --t3:#58d68d; --ta:#b48cff; }
+  :root {
+    --bg:#f4f6fa; --card:#ffffff; --line:#e3e8f0; --txt:#15213b; --dim:#64748b;
+    --accent:#0f766e; --accent-soft:#ccfbf1; --indigo:#3730a3;
+    --t1:#dc2626; --t1-soft:#fee2e2; --t2:#d97706; --t2-soft:#fef3c7;
+    --t3:#16a34a; --t3-soft:#dcfce7; --ta:#7c3aed; --ta-soft:#ede9fe;
+    --shadow:0 1px 3px rgba(21,33,59,.08), 0 4px 16px rgba(21,33,59,.05);
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--txt); }
-  header { display:flex; align-items:center; gap:12px; padding:14px 22px; border-bottom:1px solid var(--line); }
-  header h1 { font-size:18px; margin:0; } header .sub { color:var(--dim); font-size:12px; }
-  header button { margin-left:auto; }
-  main { display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; padding:16px 22px; }
-  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 10px; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
-  th { color:var(--dim); font-weight:600; }
-  .tier { display:inline-block; min-width:26px; text-align:center; padding:1px 7px; border-radius:20px; font-weight:700; color:#10131a; }
-  .T1{background:var(--t1)} .T2{background:var(--t2)} .T3{background:var(--t3)} .TA{background:var(--ta)}
-  .reply { font-family:Consolas,monospace; font-size:11.5px; color:var(--dim); word-break:break-all; }
-  .queue-item { border:1px solid var(--ta); border-radius:8px; padding:10px; margin-bottom:10px; }
-  .beds { font-variant-numeric:tabular-nums; }
-  .full { color:var(--t1); font-weight:700; }
-  button { background:#223052; color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:4px 10px; cursor:pointer; }
-  button:hover { background:#2d3f6b; }
-  select { background:#223052; color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:3px 6px; }
-  .pill { font-size:11px; color:var(--dim); }
-  .hitl { border-left:3px solid var(--ta); padding-left:8px; color:var(--dim); font-size:12px; margin-top:8px; }
+  body { margin:0; font:14px/1.5 -apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+         background:var(--bg); color:var(--txt); }
+  header { display:flex; align-items:center; gap:14px; padding:14px 28px;
+           background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:17px; }
+  .brand .dot { width:34px; height:34px; border-radius:9px; background:var(--accent);
+                color:#fff; display:grid; place-items:center; font-size:17px; }
+  .brand small { display:block; font-weight:500; color:var(--dim); font-size:11.5px; }
+  .spacer { flex:1; }
+  .ghost { background:transparent; border:1px solid var(--line); color:var(--txt);
+           border-radius:8px; padding:7px 14px; cursor:pointer; font-weight:600; font-size:13px; }
+  .ghost:hover { border-color:var(--accent); color:var(--accent); }
+  main { max-width:1180px; margin:0 auto; padding:24px 28px 60px; }
+
+  /* picker */
+  .picker-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; margin-top:18px; }
+  .fac-card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px;
+              box-shadow:var(--shadow); cursor:pointer; transition:transform .12s, border-color .12s; }
+  .fac-card:hover { transform:translateY(-2px); border-color:var(--accent); }
+  .fac-card h3 { margin:0 0 2px; font-size:16px; }
+  .fac-card .type { color:var(--dim); font-size:12px; text-transform:capitalize; }
+  .mini-occ { margin-top:14px; }
+  h1 { font-size:22px; margin:6px 0 2px; }
+  .sub { color:var(--dim); font-size:13px; }
+
+  /* facility view */
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin:20px 0; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:var(--shadow); }
+  .kpi .v { font-size:26px; font-weight:800; letter-spacing:-.5px; }
+  .kpi .l { color:var(--dim); font-size:12px; margin-top:2px; }
+  .bar { height:8px; border-radius:6px; background:#eef1f6; overflow:hidden; margin-top:10px; }
+  .bar i { display:block; height:100%; border-radius:6px; background:var(--accent); transition:width .4s; }
+  .bar i.hot { background:var(--t1); }
+  .bar i.warm { background:var(--t2); }
+
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px;
+            padding:18px 20px; box-shadow:var(--shadow); margin-bottom:18px; }
+  section h2 { font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); margin:0 0 12px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th,td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; font-size:12px; }
+  tr:last-child td { border-bottom:none; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:20px; font-weight:700; font-size:11.5px; }
+  .P1 { background:var(--t1-soft); color:var(--t1); } .P2 { background:var(--t2-soft); color:var(--t2); }
+  .P3 { background:var(--t3-soft); color:var(--t3); } .PA { background:var(--ta-soft); color:var(--ta); }
+  .status { font-size:11.5px; font-weight:700; }
+  .st-pending { color:var(--t2); } .st-admitted { color:var(--t3); } .st-review { color:var(--ta); }
+  .btn { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:7px 14px;
+         cursor:pointer; font-weight:700; font-size:12.5px; }
+  .btn:hover { filter:brightness(1.08); }
+  .btn.red { background:var(--t1); } .btn.violet { background:var(--ta); }
+  .btn.subtle { background:#eef1f6; color:var(--txt); }
+  .btn:disabled { opacity:.45; cursor:default; }
+  select { border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:#fff; font-size:12.5px; }
+  .queue-item { border:1px solid var(--line); border-left:4px solid var(--ta); border-radius:10px;
+                padding:12px 14px; margin-bottom:10px; background:#fcfcfe; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px; }
+  .mono { font-family:"Cascadia Code",Consolas,monospace; font-size:11.5px; color:var(--dim); word-break:break-all; }
+  .footer-note { color:var(--dim); font-size:11.5px; margin-top:10px; border-top:1px dashed var(--line); padding-top:10px; }
+  .hidden { display:none; }
+  .empty { color:var(--dim); font-size:13px; padding:8px 0; }
 </style>
 </head>
 <body>
 <header>
-  <h1>🏥 DoctorFind — Gateway Dashboard</h1>
-  <span class="sub">human-in-the-loop · fixed reply set · no diagnosis</span>
-  <button onclick="resetDemo()">Reset demo</button>
+  <div class="brand">
+    <div class="dot">✚</div>
+    <div>DoctorFind <small>Facility Gateway · human-in-the-loop · no diagnosis</small></div>
+  </div>
+  <div class="spacer"></div>
+  <button class="ghost hidden" id="backBtn" onclick="goPicker()">← All facilities</button>
+  <button class="ghost" onclick="resetDemo()">Reset demo</button>
 </header>
+
 <main>
-  <div>
+  <!-- facility picker -->
+  <div id="picker">
+    <h1>Select your facility</h1>
+    <div class="sub">Each facility operates its own dashboard. Preconfigured from <b>facilities.json</b> (modeled on healthsites.io · Maina et al. 2019).</div>
+    <div class="picker-grid" id="pickerGrid"></div>
+  </div>
+
+  <!-- single-facility dashboard -->
+  <div id="facility" class="hidden">
+    <h1 id="facName"></h1>
+    <div class="sub" id="facMeta"></div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="v" id="kOcc">–</div><div class="l">Beds occupied</div><div class="bar"><i id="kBar" style="width:0%"></i></div></div>
+      <div class="kpi"><div class="v" id="kFree">–</div><div class="l">Beds free</div></div>
+      <div class="kpi"><div class="v" id="kMsg">–</div><div class="l">SMS received (24 h)</div></div>
+      <div class="kpi"><div class="v" id="kPending">–</div><div class="l">Awaiting acceptance</div></div>
+      <div class="kpi"><div class="v" id="kAdmitted">–</div><div class="l">Admitted via DoctorFind</div></div>
+    </div>
+
     <section>
-      <h2>Incoming SMS cases</h2>
+      <h2>Bed management</h2>
+      <div class="row">
+        <button class="btn" onclick="release()">✓ Patient released — free a bed</button>
+        <button class="btn subtle" onclick="beds(1)">+1 occupied</button>
+        <button class="btn subtle" onclick="beds(-1)">−1 occupied</button>
+        <span class="sub" id="bedHint"></span>
+      </div>
+    </section>
+
+    <section>
+      <h2>⚑ Review queue — a person makes the final call</h2>
+      <div id="queue"></div>
+      <div class="footer-note">Ambiguous or urgent cases wait here. The AI only signposts; acceptance, overrides and callbacks are staff decisions (hackathon pass/fail guardrail).</div>
+    </section>
+
+    <section>
+      <h2>Incoming SMS cases routed to this facility</h2>
       <table>
-        <thead><tr><th>#</th><th>Time</th><th>Loc</th><th>Tier</th><th>Symptoms (hash-resolved)</th><th>Routed to</th><th>Reply SMS</th></tr></thead>
+        <thead><tr><th>#</th><th>Time</th><th>From cell</th><th>Priority</th><th>Symptoms (hash-resolved)</th><th>Status</th><th></th></tr></thead>
         <tbody id="cases"></tbody>
       </table>
-    </section>
-    <section style="margin-top:16px">
-      <h2>⚑ Human review queue (nurse makes the final call)</h2>
-      <div id="queue"></div>
-      <div class="hitl">Pass/fail guardrail: ambiguous or urgent cases always land here. The AI signposts; a person decides.</div>
-    </section>
-  </div>
-  <div>
-    <section>
-      <h2>Facilities &amp; live capacity</h2>
-      <table>
-        <thead><tr><th>Facility</th><th>Type</th><th>Beds</th><th></th></tr></thead>
-        <tbody id="facilities"></tbody>
-      </table>
-      <div class="hitl">Demo data modeled on healthsites.io (CC-BY-SA) + Maina et al. 2019 facility census.</div>
+      <div class="empty hidden" id="noCases">No messages yet — waiting for patients.</div>
+      <div class="footer-note">Payloads contain a salted hash + village cell only — no names, phones or GPS. Cases auto-purge after 24 h.</div>
     </section>
   </div>
 </main>
+
 <script>
+const qs = new URLSearchParams(location.search);
+let FID = qs.get('f');
+let STATE = null;
+let lastPayload = "";
+
 const $ = id => document.getElementById(id);
-let ACTIONS = [];
+const fac = () => STATE?.facilities.find(f => f.id === FID);
+const freeBeds = f => Math.max(0, f.total_beds - f.beds_occupied);
+const overBy = f => Math.max(0, f.beds_occupied - f.total_beds);
+const fmtTime = ts => new Date(ts*1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+// Redirect target: another hospital with free beds first; if none, the one
+// with the best overload score (total - patients over max) = load balancing.
+const altScore = f => freeBeds(f) > 0 ? 1000 + freeBeds(f) : f.total_beds - overBy(f);
+const bestAlt = () => STATE.facilities
+  .filter(f => f.type === 'hospital' && f.id !== FID)
+  .sort((a,b) => altScore(b) - altScore(a))[0] ?? null;
+
+function goPicker() { history.pushState({}, '', location.pathname); FID = null; render(); }
+function openFac(id) { history.pushState({}, '', '?f=' + id); FID = id; render(); }
+window.onpopstate = () => { FID = new URLSearchParams(location.search).get('f'); render(); };
 
 async function refresh() {
   try {
-    const r = await fetch('/api/state'); const s = await r.json();
-    ACTIONS = s.actions;
-    $('cases').innerHTML = s.cases.map(c => `
-      <tr>
-        <td>${c.id}</td>
-        <td>${new Date(c.ts*1000).toLocaleTimeString()}</td>
-        <td>${c.loc}</td>
-        <td><span class="tier T${c.tier}">${c.tier}</span></td>
-        <td>${c.symptoms.join('<br>') || '<span class="pill">unresolved / ambiguous</span>'}</td>
-        <td>${facName(s, c.facility_id)} ${c.needs_review && !c.handled ? '⚑' : ''}</td>
-        <td class="reply">${c.reply ?? ''}</td>
-      </tr>`).join('');
-
-    const queue = s.cases.filter(c => c.needs_review && !c.handled);
-    $('queue').innerHTML = queue.length ? queue.map(c => `
-      <div class="queue-item">
-        <b>Case ${c.id}</b> · <span class="tier T${c.tier}">${c.tier}</span> · ${c.loc} ·
-        ${c.symptoms.join(', ') || 'ambiguous input — classifier below confidence threshold'}
-        <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap">
-          <select id="fac-${c.id}">${s.facilities.map(f=>`<option value="${f.id}">${f.name}</option>`).join('')}</select>
-          <select id="act-${c.id}">${ACTIONS.map(a=>`<option>${a}</option>`).join('')}</select>
-          <button onclick="resolveCase(${c.id})">Send corrected reply</button>
-          <button onclick="markHandled(${c.id})">Confirm — mark handled</button>
-        </div>
-      </div>`).join('') : '<span class="pill">queue empty</span>';
-
-    $('facilities').innerHTML = s.facilities.map(f => `
-      <tr>
-        <td>${f.name}</td><td>${f.type}</td>
-        <td class="beds ${f.total_beds && !f.available_beds ? 'full' : ''}">
-          ${f.total_beds ? f.available_beds + ' / ' + f.total_beds : '—'}</td>
-        <td>${f.total_beds ? `<button onclick="beds('${f.id}',-1)">−</button>
-                             <button onclick="beds('${f.id}',1)">+</button>` : ''}</td>
-      </tr>`).join('');
+    const text = await (await fetch('/api/state')).text();
+    if (text === lastPayload) return;   // no re-render = no lost clicks/scroll
+    lastPayload = text;
+    STATE = JSON.parse(text);
+    render();
   } catch (e) { /* server restarting */ }
 }
-function facName(s, id) { const f = s.facilities.find(f=>f.id===id); return f ? f.name : '—'; }
-async function beds(id, d) { await fetch(`/api/facilities/${id}/beds?delta=${d}`, {method:'POST'}); refresh(); }
-async function resolveCase(id) {
-  await fetch(`/api/cases/${id}/resolve`, {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({facility_id: $(`fac-${id}`).value, action: $(`act-${id}`).value})});
-  refresh();
+
+function render() {
+  if (!STATE) return;
+  const inFac = FID && fac();
+  $('picker').classList.toggle('hidden', !!inFac);
+  $('facility').classList.toggle('hidden', !inFac);
+  $('backBtn').classList.toggle('hidden', !inFac);
+  inFac ? renderFacility() : renderPicker();
 }
-async function markHandled(id) { await fetch(`/api/cases/${id}/handled`, {method:'POST'}); refresh(); }
-async function resetDemo() { await fetch('/api/reset', {method:'POST'}); refresh(); }
+
+function renderPicker() {
+  const list = STATE.facilities.filter(f => f.type !== 'pharmacy');
+  $('pickerGrid').innerHTML = list.map(f => {
+    const pct = f.total_beds ? Math.round(100 * f.beds_occupied / f.total_beds) : 0;
+    const cls = pct >= 100 ? 'hot' : pct >= 75 ? 'warm' : '';
+    return `<div class="fac-card" onclick="openFac('${f.id}')">
+      <h3>${f.name}</h3><div class="type">${f.type} · ${f.phone}</div>
+      <div class="mini-occ">
+        <b>${f.beds_occupied}/${f.total_beds}</b> <span class="type">beds occupied${overBy(f) ? ` · +${overBy(f)} waiting` : ''}</span>
+        <div class="bar"><i class="${cls}" style="width:${Math.min(100, pct)}%"></i></div>
+      </div></div>`;
+  }).join('');
+}
+
+function renderFacility() {
+  const f = fac();
+  const myCases = STATE.cases.filter(c => c.facility_id === FID);
+  const pct = f.total_beds ? Math.round(100 * f.beds_occupied / f.total_beds) : 0;
+
+  $('facName').textContent = f.name;
+  $('facMeta').textContent = `${f.type.toUpperCase()} · ${f.phone} · specialties: ${f.specialties.join(', ')}`;
+  $('kOcc').textContent = `${f.beds_occupied}/${f.total_beds}`;
+  $('kFree').textContent = freeBeds(f);
+  $('kMsg').textContent = myCases.length;
+  $('kPending').textContent = myCases.filter(c => !c.admitted && !c.handled && (c.tier === '1' || c.tier === '2')).length;
+  $('kAdmitted').textContent = myCases.filter(c => c.admitted).length;
+  const bar = $('kBar'); bar.style.width = Math.min(100, pct) + '%';
+  bar.className = pct >= 100 ? 'hot' : pct >= 75 ? 'warm' : '';
+  $('bedHint').textContent = overBy(f)
+    ? `⚠ Over capacity by ${overBy(f)} — waiting list; urgent cases still come here if no hospital has beds.`
+    : pct >= 100 ? 'Facility full — new urgent cases go to the hospital with the most capacity.' : '';
+
+  const queue = STATE.cases.filter(c => c.needs_review && !c.handled && (c.facility_id === FID || c.tier === 'A'));
+  const alt = bestAlt();
+  const amFull = freeBeds(f) === 0;
+  $('queue').innerHTML = queue.length ? queue.map(c => `
+    <div class="queue-item">
+      <b>Case ${c.id}</b> <span class="pill P${c.tier}">${tierLabel(c.tier)}</span>
+      · ${fmtTime(c.ts)} · cell ${c.loc} · ${c.symptoms.join(', ') || 'unresolved — classifier below confidence threshold'}
+      <div class="row">
+        ${c.tier === 'A' ? `
+          <button class="btn" onclick="resolveTo(${c.id}, '${FID}', '${f.type === 'hospital' ? 'GO_HOSPITAL' : 'GO_CLINIC'}')">Tell patient: come here</button>
+          <button class="btn violet" onclick="resolveTo(${c.id}, '${FID}', 'CALLBACK')">📞 Call patient back</button>
+          <button class="btn subtle" onclick="markHandled(${c.id})">Dismiss</button>
+        ` : `
+          ${canAccept(c) ? `<button class="btn" onclick="accept(${c.id})">${amFull ? '✓ Accept — waiting list' : '✓ Accept patient'}</button>` : ''}
+          ${alt ? `<button class="btn violet" onclick="resolveTo(${c.id}, '${alt.id}', 'GO_HOSPITAL')">↪ Redirect → ${alt.name} (${freeBeds(alt) > 0 ? freeBeds(alt) + ' free' : '+' + overBy(alt) + ' over'})</button>` : ''}
+        `}
+      </div>
+    </div>`).join('') : '<div class="empty">Queue empty.</div>';
+
+  $('cases').innerHTML = myCases.map(c => `
+    <tr>
+      <td>${c.id}</td>
+      <td>${fmtTime(c.ts)}</td>
+      <td>${c.loc}</td>
+      <td><span class="pill P${c.tier}">${tierLabel(c.tier)}</span></td>
+      <td>${c.symptoms.join('<br>') || '<span class="sub">ambiguous input</span>'}</td>
+      <td class="status ${c.admitted ? 'st-admitted' : c.needs_review && !c.handled ? 'st-review' : (c.tier==='1'||c.tier==='2') && !c.handled ? 'st-pending' : ''}">
+        ${c.admitted ? 'ADMITTED' : c.needs_review && !c.handled ? 'IN REVIEW' : (c.tier==='1'||c.tier==='2') && !c.handled ? 'PENDING' : 'REPLIED'}</td>
+      <td>${canAccept(c) ? `<button class="btn" onclick="accept(${c.id})">Accept</button>` : ''}</td>
+    </tr>`).join('');
+  $('noCases').classList.toggle('hidden', myCases.length > 0);
+}
+
+const tierLabel = t => ({'1':'URGENT','2':'MODERATE','3':'MILD','A':'UNSURE'})[t] ?? t;
+const canAccept = c => !c.admitted && (c.tier === '1' || c.tier === '2') && c.facility_id === FID && fac().total_beds > 0;
+
+async function post(url) { const r = await fetch(url, {method:'POST'}); if (!r.ok) alert((await r.json()).detail ?? 'error'); lastPayload = ""; refresh(); }
+const accept = id => post(`/api/cases/${id}/accept`);
+const release = () => post(`/api/facilities/${FID}/release`);
+const beds = d => post(`/api/facilities/${FID}/beds?delta=${d}`);
+const markHandled = id => post(`/api/cases/${id}/handled`);
+async function resolveTo(id, facilityId, action) {
+  await fetch(`/api/cases/${id}/resolve`, {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({facility_id: facilityId, action})});
+  lastPayload = ""; refresh();
+}
+async function resetDemo() { await fetch('/api/reset', {method:'POST'}); lastPayload = ""; refresh(); }
+
 refresh(); setInterval(refresh, 2000);
 </script>
 </body>

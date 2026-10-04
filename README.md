@@ -23,20 +23,28 @@ The Small AI is **on-device symptom understanding in Afaan Oromoo** (~37M speake
 ## Quick start
 
 ```powershell
-# 1. Hospital gateway + nurse dashboard  →  http://localhost:8000
+# 1. Hospital gateway + dashboards  →  http://localhost:8000  (pick your facility)
 pip install -r server/requirements.txt
 python -m uvicorn app:app --host 0.0.0.0 --port 8000   # run from server/
 
-# 2. Patient app (Android phone with Expo Go, same Wi-Fi as laptop)
+# 2. Patient app — three ways to run it:
 cd app
 npm install
-npx expo start          # scan QR with Expo Go
-
-# 3. In the app: consent screen → ⚙ set Gateway URL to http://<laptop-LAN-IP>:8000
+npx expo start                      # (a) Expo Go on a phone, same Wi-Fi
+npx expo export --platform web --output-dir ..\server\patient-web
+#                                     (b) web simulator → http://localhost:8000/patient/
+npx eas build -p android --profile preview
+#                                     (c) real APK: offline + real SMS (needs free Expo account)
 ```
 
-Retrain the classifier / regenerate model assets: `python ml/train.py`
-Run validation: `python -m pytest server/tests -q` (9 tests) and `python e2e_check.py` (live round-trip, run before every rehearsal).
+**Deploy to Vercel (one project serves everything):** `vercel deploy` from the repo root. The FastAPI
+function serves the dashboard at `/`, the gateway webhook at `/gateway/sms`, and the patient web
+simulator at `/patient/` (build it first with the export command above — it is committed into
+`server/patient-web`). Note: on Vercel, demo state (cases, bed counts) lives in the warm function
+instance — fine for a live demo, resets on cold start; the local/APK path is the offline-proof one.
+
+Retrain the classifier: edit [ml/corpus.json](ml/corpus.json) → `python ml/train.py`
+Run validation: `python -m pytest server/tests -q` (9 tests) and `python e2e_check.py` (live round-trip).
 
 ## Demo script (for the 2–5 min video)
 
@@ -44,7 +52,7 @@ Run validation: `python -m pytest server/tests -q` (9 tests) and `python e2e_che
 |---|---|---|
 | 1. Offline proof | Phone: Wi-Fi + mobile data **off**. Open app, consent screen (Oromo, voice) | Core feature offline, consent, device user already has |
 | 2. Urgent case | Type "*ho'a guddaa fi gaggabdoo*" (or tap 🌡️+⚡) → AI recognizes both, danger-sign rule fires red HATATTAMA tier → confirm screen reads the payload aloud → show the ≤160-char PII-free payload | Small AI in a local language + deterministic safety override + privacy |
-| 3. The round trip | Send via demo channel (or real SMS to a second phone showing composer). Dashboard on laptop: case appears, hash resolved to symptoms, routed **past the full 4-km clinic (0 beds)** to Adama District Hospital (beds 14→13, reserved). Phone shows big green action card + 📞 tap-to-call | End-to-end within constraints; capacity-aware routing; the *overcrowding* problem from the brief |
+| 3. The round trip | Send via demo channel (or real SMS on the APK). Dashboard (Adama view): case appears with hash-resolved symptoms, routed **past the full 4-km clinic (6/6 beds)**; staff press **Accept patient** (occupancy 16→17/20) and later **Patient released**. Phone shows big action card + 📞 tap-to-call | End-to-end within constraints; capacity-aware routing; staff stay in control of beds |
 | 4. Mild case | Headache + cold pictograms → tier 3 → routed to village pharmacy | Hospital load reduction (the brief's core pain) |
 | 5. Fail-safe (pass/fail criterion) | Type gibberish ("*kaleessa gabaa deeme*") → app itself says "**Hin mirkanoofne — nama gaafadhu**" → send anyway → lands in dashboard **human review queue** → nurse picks facility, sends corrected reply | "Not sure — ask a person" + human makes the final call |
 | 6. Close | Dashboard: show symptom set / language pack / facility table are 3 swappable JSON files | Scalability & replicability |
@@ -57,7 +65,7 @@ Run validation: `python -m pytest server/tests -q` (9 tests) and `python e2e_che
 | Problem evidence | World Bank Service Delivery Indicators (provider absence, stock-outs); Malaria Atlas travel-time surfaces; Mwana/mTrac SMS precedents (10M+ users) | Shows the access gap is real and SMS routing scales |
 | Training phrases | ~250 **synthetic, team-curated Afaan Oromoo phrases** ([ml/corpus.json](ml/corpus.json)) — labeled synthetic as the brief requires | The classifier's entire training corpus |
 
-**What our data does NOT cover (scored honestly):** real field speech; dialect variation (Borana vs. Wellega Oromo); Oromo/Amharic code-switching; caregiver phrasing for child patients; audio input (next step: keyword spotting via Mozilla Common Voice Oromo contributions). Classifier eval on held-out unseen wordings: **73.6% exact-set accuracy, 83% of unrelated input correctly triggers the fail-safe** (`ml/eval_report.txt`) — and every low-confidence case goes to a human, never to a guess. Android rarely ships an `om` TTS voice, so audio prompts fall back to English while pictograms + color remain the primary non-reader channel.
+**What our data does NOT cover (scored honestly):** real field speech; dialect variation (Borana vs. Wellega Oromo); Oromo/Amharic code-switching; caregiver phrasing for child patients. Classifier eval on held-out unseen wordings: **80.6% exact-set accuracy, 75–83% of unrelated input correctly triggers the fail-safe** (`ml/eval_report.txt`) — and every low-confidence case goes to a human, never to a guess. Voice input uses the platform recognizer (Web Speech API / Android SpeechRecognizer): Afaan Oromoo ASR coverage is engine-dependent, so the mic falls back to English with an on-screen notice, and typing + pictograms remain the universal path. Android rarely ships an `om` TTS voice — audio prompts fall back to English while pictograms + color remain the primary non-reader channel.
 
 ## Responsible AI / safety design
 

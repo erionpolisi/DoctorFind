@@ -28,6 +28,9 @@
     { "code": "S21", "en": "Sore throat",                 "om": "Dhukkubbii qoonqoo",                 "emoji": "🗣️", "severity": 3, "specialty": "general"   },
     { "code": "S22", "en": "Body / joint pain",           "om": "Dhukkubbii buusaa",                  "emoji": "🦴",  "severity": 3, "specialty": "general"   },
     { "code": "S23", "en": "Weakness / fatigue",          "om": "Dadhabbii",                          "emoji": "🥱",  "severity": 3, "specialty": "general"   },
-    { "code": "S24", "en": "Skin rash",                   "om": "Finniisa gogaa",                     "emoji": "✴️", "severity": 3, "specialty": "general"   }
+    { "code": "S24", "en": "Skin rash",                   "om": "Finniisa gogaa",                     "emoji": "✴️", "severity": 3, "specialty": "general"   },
+    { "code": "S25", "en": "Toothache",                   "om": "Dhukkubbii ilkaanii",                "emoji": "🦷",  "severity": 3, "specialty": "general"   },
+    { "code": "S26", "en": "Painful urination",           "om": "Dhukkubbii fincaanii",               "emoji": "💧",  "severity": 2, "specialty": "general"   },
+    { "code": "S27", "en": "Animal bite",                 "om": "Ciniinnaa bineensaa",                "emoji": "🐕",  "severity": 2, "specialty": "trauma"    }
   ]
 }

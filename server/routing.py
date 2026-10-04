@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parent
 
 W_CAPACITY, W_DISTANCE, W_SPECIALTY = 0.5, 0.3, 0.2
 HOSPITAL_BONUS_T1 = 0.1  # tier-1 cases prefer hospitals over clinics at equal score
+CAP_NORM_BEDS = 5        # >=5 free beds counts as full capacity (absolute, not ratio:
+                         # a 4/20-free hospital must not lose to a 4/5-free clinic)
 
 ACTIONS = ("GO_HOSPITAL", "GO_CLINIC", "GO_PHARMACY", "ASK_PERSON", "CALLBACK")
 
@@ -31,6 +33,18 @@ def load_config() -> dict:
     return json.loads((ROOT / "facilities.json").read_text(encoding="utf-8"))
 
 
+def free_beds(fac: dict) -> int:
+    return max(0, fac["total_beds"] - fac["beds_occupied"])
+
+
+def overload_score(fac: dict) -> int:
+    """Load-balancing metric when everything is full: total minus patients over
+    the limit. Equal overload -> the bigger hospital wins; heavy overload
+    pushes new patients to the next hospital."""
+    over = max(0, fac["beds_occupied"] - fac["total_beds"])
+    return fac["total_beds"] - over
+
+
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     r = 6371.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
@@ -46,7 +60,7 @@ def specialty_need(symptom_codes: tuple[str, ...], symptoms_by_code: dict) -> se
 
 
 def score_facility(fac: dict, dist_km: float, need: set[str], max_km: float, tier: str) -> float:
-    capacity = (fac["available_beds"] / fac["total_beds"]) if fac["total_beds"] else 1.0
+    capacity = min(1.0, free_beds(fac) / CAP_NORM_BEDS) if fac["total_beds"] else 1.0
     distance = max(0.0, 1.0 - dist_km / max_km)
     covered = len(need & set(fac["specialties"]))
     specialty = (covered / len(need)) if need else 1.0
@@ -73,10 +87,19 @@ def route(tier: str, loc_id: str, symptom_codes: tuple[str, ...],
                 "review_needed": True, "distance_km": None, "score": 0.0}
 
     if tier == "1":
-        candidates = [f for f in facilities if f["type"] in ("hospital", "clinic") and f["available_beds"] > 0]
+        # Urgent: hospitals only. If every hospital is full, still send the
+        # patient to the hospital with the most capacity (waiting list) —
+        # never to a health center, never silence.
+        candidates = [f for f in facilities if f["type"] == "hospital" and free_beds(f) > 0]
+        if not candidates:
+            hospitals = [f for f in facilities if f["type"] == "hospital"]
+            if hospitals:
+                best = max(hospitals, key=lambda f: (overload_score(f), -_dist(f, cell)))
+                return {"action": "GO_HOSPITAL", "facility": best, "review_needed": True,
+                        "distance_km": round(_dist(best, cell), 1), "score": 0.0, "overloaded": True}
         action = "GO_HOSPITAL"
     elif tier == "2":
-        candidates = [f for f in facilities if f["type"] in ("clinic", "hospital") and f["available_beds"] > 0]
+        candidates = [f for f in facilities if f["type"] in ("clinic", "hospital") and free_beds(f) > 0]
         action = "GO_CLINIC"
     else:
         candidates = [f for f in facilities if f["type"] in ("pharmacy", "clinic")]

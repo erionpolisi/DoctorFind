@@ -1,0 +1,9 @@
+app/node_modules
+app/.expo
+app/dist
+ml
+.git
+__pycache__
+*.pyc
+server/cases.db
+file.pdf
