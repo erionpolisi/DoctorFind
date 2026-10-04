@@ -1,3 +1,13 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "gateway": {
+      "root": ".",
+      "framework": "fastapi",
+      "entrypoint": "api/index.py"
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": { "service": "gateway" } }
+  ]
 }
