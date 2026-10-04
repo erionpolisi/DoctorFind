@@ -20,6 +20,7 @@ const STRINGS = {
   aiUnsure: { om: "Hin mirkanoofne — nama gaafadhu. Namatu ilaala.", en: "Not sure — ask a person. A person will review this." },
   aiPartial: { om: "Gartokko hin hubatamne — namni ilaala.", en: "Partly unclear — a person will review." },
   aiFound: { om: "AI hubate:", en: "AI recognized:" },
+  didYouMean: { om: "Kana jechuu barbaadde? Tuqi:", en: "Did you mean? Tap to confirm:" },
   orTap: { om: "ykn suuraa tuqi", en: "or tap pictures" },
   continueBtn: { om: "Itti fufi ▸", en: "Continue ▸" },
   confirm: { om: "Mirkaneessi", en: "Confirm" },

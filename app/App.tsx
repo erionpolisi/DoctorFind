@@ -10,7 +10,7 @@ import {
 import * as SMS from "expo-sms";
 import * as Speech from "expo-speech";
 
-import { predictSymptoms } from "./src/lib/classifier";
+import { predictBest, Suggestion } from "./src/lib/classifier";
 import { Lang, t } from "./src/lib/i18n";
 import { sttAvailable, startStt, SttHandle } from "./src/lib/stt";
 import { speakSmart } from "./src/lib/tts";
@@ -39,6 +39,7 @@ export default function App() {
   const [freeText, setFreeText] = useState("");
   const [aiNote, setAiNote] = useState<string | null>(null);
   const [ambiguous, setAmbiguous] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [payload, setPayload] = useState("");
   const [showDetails, setShowDetails] = useState(false);
   const [reply, setReply] = useState<Reply | null>(null);
@@ -46,6 +47,7 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const [listening, setListening] = useState(false);
+  const [engine, setEngine] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const sttRef = useRef<SttHandle | null>(null);
   const baseTextRef = useRef("");
@@ -73,9 +75,10 @@ export default function App() {
   };
 
   // ---------------------------------------------------------------- AI
-  const runClassifier = (text: string) => {
-    const p = predictSymptoms(text);
+  const runClassifier = (text: string, alternatives: string[] = []) => {
+    const p = predictBest([text, ...alternatives]);
     setAmbiguous(p.ambiguous);
+    setSuggestions(p.ambiguous ? p.suggestions.filter(s => !selected.includes(s.code)) : []);
     if (p.ambiguous && p.codes.length === 0) {
       setAiNote(`🧑‍⚕️ ${t(lang, "aiUnsure")}`);
       return;
@@ -88,6 +91,13 @@ export default function App() {
     );
   };
 
+  const confirmSuggestion = (code: string) => {
+    toggle(code);
+    speak(BY_CODE[code].om, BY_CODE[code].en);
+    setSuggestions(s => s.filter(x => x.code !== code));
+    setAmbiguous(false);  // a human confirmed — no longer a guess
+  };
+
   // ---------------------------------------------------------------- STT
   const toggleMic = async () => {
     if (listening) { sttRef.current?.stop(); setListening(false); return; }
@@ -95,19 +105,21 @@ export default function App() {
     setNotice(null);
     baseTextRef.current = freeText.trim() ? freeText.trim() + " " : "";
     sttRef.current = await startStt(lang, {
-      onStart: () => setListening(true),
+      onStart: (eng) => { setListening(true); setEngine(eng); },
       onPartial: (text) => setFreeText(baseTextRef.current + text),
-      onFinal: (text) => { setFreeText(baseTextRef.current + text); runClassifier(baseTextRef.current + text); },
-      onEnd: () => setListening(false),
+      onFinal: (text, alternatives) => {
+        setFreeText(baseTextRef.current + text);
+        runClassifier(baseTextRef.current + text, alternatives);
+      },
+      onEnd: () => { setListening(false); setEngine(null); },
       onError: (kind) => {
-        setListening(false);
+        setListening(false); setEngine(null);
         const key = kind === "unavailable" ? "sttUnavailable"
           : kind === "permission" ? "sttPermission"
           : kind === "insecure" ? "sttInsecure"
           : kind === "network" ? "sttNetwork" : "sttError";
         setNotice(t(lang, key));
       },
-      onInfo: (kind) => { if (kind === "enFallback") setNotice(t(lang, "sttEnFallback")); },
     });
   };
 
@@ -163,6 +175,7 @@ export default function App() {
 
   const resetAll = () => {
     setSelected([]); setFreeText(""); setAiNote(null); setAmbiguous(false);
+    setSuggestions([]); setEngine(null);
     setPayload(""); setReply(null); setNotice(null); setShowDetails(false); setScreen("home");
   };
 
@@ -247,12 +260,25 @@ export default function App() {
           <View style={st.listenBar}>
             <Animated.View style={[st.redDot, { transform: [{ scale: pulse }] }]} />
             <Text style={st.listenText}>{t(lang, "listening")}</Text>
+            {engine && <View style={st.engineBadge}><Text style={st.engineBadgeText}>{engine}</Text></View>}
           </View>
         )}
         {!!freeText.trim() && !listening && (
           <Big small color="#3f7fde" onPress={() => runClassifier(freeText)}>🤖 {t(lang, "aiButton")}</Big>
         )}
         {aiNote && <Text style={st.aiNote}>{aiNote}</Text>}
+        {suggestions.length > 0 && (
+          <View style={st.suggestBox}>
+            <Text style={st.suggestLabel}>{t(lang, "didYouMean")}</Text>
+            <View style={st.chips}>
+              {suggestions.map(s => (
+                <Pressable key={s.code} style={st.suggestChip} onPress={() => confirmSuggestion(s.code)}>
+                  <Text style={st.suggestChipText}>{BY_CODE[s.code].emoji} {BY_CODE[s.code][lang]}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
         {notice && <Text style={st.notice}>{notice}</Text>}
 
         <Text style={st.orTap}>{t(lang, "orTap")} (max {MAX_SELECTED})</Text>
@@ -442,6 +468,21 @@ const st = StyleSheet.create({
   },
   redDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#dc2626" },
   listenText: { color: "#b91c1c", fontWeight: "700", fontSize: 14 },
+  engineBadge: {
+    marginLeft: "auto", backgroundColor: "#dc2626", borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 2,
+  },
+  engineBadgeText: { color: "#fff", fontWeight: "800", fontSize: 11 },
+  suggestBox: {
+    marginTop: 10, backgroundColor: "#eaf1fc", borderColor: "#c9dbf7", borderWidth: 1,
+    borderRadius: 10, padding: 10,
+  },
+  suggestLabel: { color: "#2b5cb8", fontWeight: "800", fontSize: 13, marginBottom: 8 },
+  suggestChip: {
+    backgroundColor: "#ffffff", borderColor: "#3f7fde", borderWidth: 1.5,
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8,
+  },
+  suggestChipText: { color: "#2b5cb8", fontWeight: "700", fontSize: 14 },
 
   aiNote: {
     color: "#177a53", fontSize: 14, marginTop: 10, backgroundColor: "#e8f8f0",

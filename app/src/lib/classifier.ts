@@ -28,7 +28,7 @@ function tokenize(text: string): string[] {
 export type Prediction = { codes: string[]; confidence: number; ambiguous: boolean };
 
 export function predictSymptoms(text: string): Prediction {
-  const segments = text.toLowerCase().split(/\bfi\b|\bakkasumas\b|,/).filter(s => s.trim());
+  const segments = text.toLowerCase().split(/\bfi\b|\bakkasumas\b|\band\b|,/).filter(s => s.trim());
   if (!segments.length) return { codes: [], confidence: 0, ambiguous: true };
 
   const votes: Record<string, number> = {};
@@ -57,4 +57,48 @@ export function predictSymptoms(text: string): Prediction {
   const codes = Object.keys(votes).sort((a, b) => votes[b] - votes[a]).slice(0, MAX_SELECTED);
   // Fail-safe semantics: if ANY segment is not understood, a person must check.
   return { codes, confidence: worst, ambiguous: worst < AMBIG || codes.length === 0 };
+}
+
+export type Suggestion = { code: string; sim: number };
+const SUGGEST_FLOOR = 0.18; // below this it's noise, not a suggestion
+
+/** Closest symptoms even below the selection threshold — the user confirms by
+ * tapping, so showing near-misses is safe and "always helps". */
+export function suggestSymptoms(texts: string[], k = 3): Suggestion[] {
+  const best: Record<string, number> = {};
+  for (const text of texts) {
+    for (const seg of text.toLowerCase().split(/\bfi\b|\bakkasumas\b|\band\b|,/)) {
+      if (!seg.trim()) continue;
+      const vec: Record<number, number> = {};
+      for (const t of tokenize(seg)) {
+        const i = VOCAB[t];
+        if (i !== undefined) vec[i] = (vec[i] ?? 0) + IDF[i];
+      }
+      const norm = Math.sqrt(Object.values(vec).reduce((a, v) => a + v * v, 0)) || 1;
+      for (const key of Object.keys(vec)) vec[+key] /= norm;
+      for (const e of ENTRIES) {
+        let s = 0;
+        for (const [i, w] of e.v) if (vec[i] !== undefined) s += vec[i] * w;
+        if (s >= SUGGEST_FLOOR) for (const c of e.l) best[c] = Math.max(best[c] ?? 0, s);
+      }
+    }
+  }
+  return Object.entries(best)
+    .map(([code, sim]) => ({ code, sim }))
+    .sort((a, b) => b.sim - a.sim)
+    .slice(0, k);
+}
+
+/** Run prediction over the primary transcript AND recognizer alternatives;
+ * keep the most confident reading, plus suggestions for the tap-to-confirm UI. */
+export function predictBest(texts: string[]): Prediction & { suggestions: Suggestion[] } {
+  const candidates = texts.filter(t => t.trim());
+  let best: Prediction = { codes: [], confidence: 0, ambiguous: true };
+  for (const t of candidates) {
+    const p = predictSymptoms(t);
+    const better = (!p.ambiguous && best.ambiguous) ||
+      (p.ambiguous === best.ambiguous && p.confidence > best.confidence);
+    if (better) best = p;
+  }
+  return { ...best, suggestions: best.ambiguous ? suggestSymptoms(candidates) : [] };
 }
