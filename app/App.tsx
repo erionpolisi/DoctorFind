@@ -125,6 +125,14 @@ export default function App() {
   // ---------------------------------------------------------------- send
   const sendRealSms = async () => {
     setSentViaRealSms(true);
+    if (Platform.OS === "web") {
+      // Browsers cannot send SMS, but the sms: intent opens the phone's
+      // messaging app with the payload prefilled — works with zero data.
+      window.location.href = `sms:${gatewayPhone}?body=${encodeURIComponent(payload)}`;
+      setReply(null);
+      setScreen("reply");
+      return;
+    }
     if (await SMS.isAvailableAsync()) {
       await SMS.sendSMSAsync([gatewayPhone], payload);
       setReply(null);
@@ -297,7 +305,9 @@ export default function App() {
           <Text style={st.privacyNote}>🔒 {t(lang, "smsNote")}</Text>
         </View>
 
-        {smsPossible && <Big color="#0f766e" onPress={sendRealSms}>{t(lang, "sendSms")}</Big>}
+        {(smsPossible || Platform.OS === "web") && (
+          <Big color="#0f766e" onPress={sendRealSms}>{t(lang, "sendSms")}</Big>
+        )}
         <Big color="#1d4ed8" onPress={sendDemoChannel}>{t(lang, "sendDemo")}</Big>
         {notice && <Text style={st.notice}>{notice}</Text>}
 

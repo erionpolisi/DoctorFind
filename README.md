@@ -32,8 +32,9 @@ cd app
 npm install
 npx expo start                      # (a) Expo Go on a phone, same Wi-Fi
 npx expo export --platform web --output-dir ..\server\patient-web
-#                                     (b) web simulator → http://localhost:8000/patient/
-npx eas build -p android --profile preview
+cd ..; python tools\make_pwa.py
+#                                     (b) web simulator / offline PWA → http://localhost:8000/patient/
+cd app; npx eas build -p android --profile preview
 #                                     (c) real APK: offline + real SMS (needs free Expo account)
 ```
 
