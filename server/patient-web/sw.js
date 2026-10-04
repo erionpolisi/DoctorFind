@@ -1,5 +1,5 @@
-const CACHE = "doctorfind-1791089369";
-const ASSETS = ["/patient/_expo/static/js/web/index-03e16c3883ca15097a8740223fbaed6d.js", "/patient/favicon.ico", "/patient/icon.png", "/patient/index.html", "/patient/metadata.json", "/patient/", "/patient/manifest.webmanifest"];
+const CACHE = "doctorfind-1791090212";
+const ASSETS = ["/patient/_expo/static/js/web/index-5bcbd58c65e143a7ef8e95512138dfd5.js", "/patient/favicon.ico", "/patient/icon.png", "/patient/index.html", "/patient/metadata.json", "/patient/", "/patient/manifest.webmanifest"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

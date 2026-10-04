@@ -87,6 +87,46 @@
   "gibberish": [
     "akkam jirta", "nagaa dha", "maqaan koo noor", "kaleessa gabaa deeme",
     "yoom dhufta", "galatoomi", "buna bituu barbaada", "manni koo fagoo dha",
-    "guyyaa gaarii", "obboleessi koo dhufe", "gatii bunaa beektaa", "bokkaan roobe"
-  ]
+    "guyyaa gaarii", "obboleessi koo dhufe", "gatii bunaa beektaa", "bokkaan roobe",
+    "hello how are you", "what time is it", "the weather is nice today",
+    "my car broke down", "i want to buy coffee", "good morning my friend"
+  ],
+  "corpus_en": {
+    "S01": ["seizure", "convulsions", "he is having a seizure", "she collapsed and is shaking",
+            "fits and shaking", "epileptic fit", "body is shaking uncontrollably"],
+    "S02": ["unconscious", "not responding", "passed out", "fainted and wont wake up",
+            "no response when called", "she is knocked out"],
+    "S03": ["heavy bleeding", "bleeding a lot", "the bleeding wont stop",
+            "blood everywhere from the wound", "severe bleeding"],
+    "S04": ["cant breathe", "difficulty breathing", "short of breath",
+            "struggling to breathe", "breathing problem", "gasping for air"],
+    "S05": ["chest pain", "pain in my chest", "my chest hurts", "tight chest", "heart pain"],
+    "S06": ["snake bite", "bitten by a snake", "a snake bit me", "snakebite on the leg"],
+    "S07": ["severe burn", "burned by fire", "got burned badly", "hot water burn", "burn injury"],
+    "S08": ["child cannot drink", "baby refuses to eat", "my child wont eat or drink",
+            "baby not feeding", "child refuses milk"],
+    "S09": ["pregnancy problem", "pregnant and bleeding", "labor pains started",
+            "pregnancy complication", "pregnant woman in pain"],
+    "S10": ["fever", "high fever", "i have a fever", "my body is hot",
+            "temperature is high", "burning up", "fever and chills"],
+    "S11": ["vomiting", "throwing up", "i keep vomiting", "cant keep food down", "nausea and vomiting"],
+    "S12": ["diarrhea", "watery diarrhea", "loose stools", "running stomach", "diarrhea all day"],
+    "S13": ["stomach pain", "my stomach hurts", "belly ache", "abdominal pain", "cramps in my stomach"],
+    "S14": ["wound", "injury", "i got injured", "deep cut", "i fell and hurt myself", "big wound on my leg"],
+    "S15": ["ear pain", "my ear hurts", "earache", "pain inside the ear", "ear infection pain"],
+    "S16": ["eye problem", "my eye hurts", "red eyes", "cant see well", "eye pain and tearing"],
+    "S17": ["dizziness", "dizzy", "i feel dizzy", "the room is spinning", "lightheaded"],
+    "S18": ["headache", "my head hurts", "strong headache", "head is pounding",
+            "migraine", "i have a headache"],
+    "S19": ["cough", "coughing", "bad cough", "coughing all night", "dry cough"],
+    "S20": ["runny nose", "cold", "i have a cold", "blocked nose", "sneezing a lot", "flu"],
+    "S21": ["sore throat", "throat pain", "my throat hurts", "painful to swallow", "throat is swollen"],
+    "S22": ["body pain", "joint pain", "my joints hurt", "back pain", "bones ache", "muscle pain"],
+    "S23": ["weakness", "tired", "very weak", "no energy", "exhausted", "fatigue"],
+    "S24": ["skin rash", "rash", "itchy skin", "red spots on skin", "skin irritation"],
+    "S25": ["toothache", "my tooth hurts", "tooth pain", "dental pain", "swollen tooth"],
+    "S26": ["painful urination", "burning when i pee", "pain when urinating",
+            "urine problem", "frequent urination"],
+    "S27": ["dog bite", "animal bite", "bitten by a dog", "a dog bit me", "bite wound from animal"]
+  }
 }

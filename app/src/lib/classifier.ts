@@ -32,7 +32,7 @@ export function predictSymptoms(text: string): Prediction {
   if (!segments.length) return { codes: [], confidence: 0, ambiguous: true };
 
   const votes: Record<string, number> = {};
-  let worst = 1.0;
+  let best = 0;
 
   for (const seg of segments) {
     const vec: Record<number, number> = {};
@@ -50,13 +50,14 @@ export function predictSymptoms(text: string): Prediction {
       for (const [i, w] of e.v) if (vec[i] !== undefined) s += vec[i] * w;
       if (s > bestSim) { bestSim = s; bestLabels = e.l; }
     }
-    worst = Math.min(worst, bestSim);
+    best = Math.max(best, bestSim);
     if (bestSim >= SELECT) for (const c of bestLabels) votes[c] = Math.max(votes[c] ?? 0, bestSim);
   }
 
   const codes = Object.keys(votes).sort((a, b) => votes[b] - votes[a]).slice(0, MAX_SELECTED);
-  // Fail-safe semantics: if ANY segment is not understood, a person must check.
-  return { codes, confidence: worst, ambiguous: worst < AMBIG || codes.length === 0 };
+  // Ambiguous only when nothing at all was understood well; one unclear clause
+  // no longer sinks a clear match. The user confirms on the next screen anyway.
+  return { codes, confidence: best, ambiguous: codes.length === 0 || best < AMBIG };
 }
 
 export type Suggestion = { code: string; sim: number };

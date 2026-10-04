@@ -27,14 +27,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CORPUS_PATH = ROOT / "ml" / "corpus.json"
 SEED = 7
-SIM_SELECT = 0.40      # phrases at/above this cosine contribute their labels
-AMBIGUITY_THRESHOLD = 0.50  # weakest segment cosine below this => "not sure - ask a person"
+SIM_SELECT = 0.32      # phrases at/above this cosine contribute their labels
+AMBIGUITY_THRESHOLD = 0.42  # best segment below this => "not sure - ask a person"
+SEG_RE = re.compile(r"\bfi\b|\bakkasumas\b|\band\b|,")
 
 
 def load_corpus() -> tuple[dict[str, list[str]], list[str]]:
-    """Load and validate ml/corpus.json against shared/symptoms.json."""
+    """Load and validate ml/corpus.json (Oromo corpus + English corpus_en merged)."""
     data = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
-    corpus: dict[str, list[str]] = data["corpus"]
+    corpus: dict[str, list[str]] = {c: list(p) for c, p in data["corpus"].items()}
+    for c, phrases in data.get("corpus_en", {}).items():
+        corpus.setdefault(c, []).extend(phrases)
     gibberish: list[str] = data["gibberish"]
 
     symptoms = json.loads((ROOT / "shared" / "symptoms.json").read_text(encoding="utf-8"))
@@ -109,14 +112,15 @@ def train(docs: list[tuple[str, frozenset[str]]]):
 
 def predict(text: str, vocab: dict[str, int], idf: list[float], entries: list[dict],
             max_selected: int = 4):
-    """Split on Oromo conjunctions, nearest-phrase match each segment, union labels.
-    Confidence = weakest segment: if ANY part is not understood -> fail-safe."""
-    segments = [s for s in re.split(r"\bfi\b|\bakkasumas\b|,", text.lower()) if s.strip()]
+    """Split on conjunctions, nearest-phrase match each segment, union labels.
+    Confidence = BEST segment: one unclear clause must not sink a clear match;
+    ambiguity means nothing at all was understood well."""
+    segments = [s for s in SEG_RE.split(text.lower()) if s.strip()]
     if not segments:
         return [], 0.0
 
     votes: dict[str, float] = {}
-    worst = 1.0
+    best_overall = 0.0
     for seg in segments:
         toks = tokenize(seg)
         vec: dict[str, float] = {}
@@ -132,13 +136,13 @@ def predict(text: str, vocab: dict[str, int], idf: list[float], entries: list[di
             s = sum(w * e["v"].get(i, 0.0) for i, w in vec.items())
             if s > best_sim:
                 best_sim, best_labels = s, e["labels"]
-        worst = min(worst, best_sim)
+        best_overall = max(best_overall, best_sim)
         if best_sim >= SIM_SELECT:
             for c in best_labels:
                 votes[c] = max(votes.get(c, 0.0), best_sim)
 
     picked = sorted(votes, key=lambda c: -votes[c])[:max_selected]
-    return picked, worst
+    return picked, best_overall
 
 
 def main() -> None:
