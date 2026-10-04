@@ -6,8 +6,9 @@ pure JS. Retrieval-based by design: if the input does not resemble any known
 symptom phrase, confidence is low and the app says "not sure — ask a person"
 instead of guessing (hackathon fail-safe rule).
 
-Corpus: synthetic, team-curated Afaan Oromoo phrases (labeled synthetic, as the
-hackathon brief requires). Pair-phrases are generated with "fi" (= "and").
+Corpus: ml/corpus.json — synthetic, team-curated Afaan Oromoo phrases (labeled
+synthetic, as the hackathon brief requires). Append new phrases there; codes
+must exist in shared/symptoms.json. Pair-phrases are generated with "fi" (= "and").
 
 Usage:  python ml/train.py      (from repo root)
 Writes: app/assets/model.json, app/assets/symptoms.json, ml/eval_report.txt
@@ -19,97 +20,39 @@ import math
 import random
 import re
 import shutil
+import sys
 from itertools import combinations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+CORPUS_PATH = ROOT / "ml" / "corpus.json"
 SEED = 7
 SIM_SELECT = 0.40      # phrases at/above this cosine contribute their labels
 AMBIGUITY_THRESHOLD = 0.50  # weakest segment cosine below this => "not sure - ask a person"
 
-# ---------------------------------------------------------------- corpus
-# Synthetic Afaan Oromoo phrases per symptom code (see shared/symptoms.json).
-CORPUS: dict[str, list[str]] = {
-    "S01": ["gaggabdoon na qabe", "ni gaggabe", "daa'imni gaggabe", "gaggabdoo qaba",
-            "inni gaggabaa jira", "gaggabee kufe", "qaamni ni hollata", "hollannaa cimaa qaba",
-            "gaggabaa jirti", "mucaan gaggabe", "lafatti kufee hollate", "qaamni isaa hollachaa jira"],
-    "S02": ["of wallaale", "hin dammaqu", "deebii hin kennu", "of hin beeku",
-            "isheen of wallaalte", "hirribaa hin kaane", "of wallaaluu qaba",
-            "nama hin beeku", "dammaquu dide", "of wallaalee ciise", "waamnaan hin owwaatu"],
-    "S03": ["dhiigni baay'ee dhangala'e", "dhiiguu hin dhaabbanne", "madaa irraa dhiigni baay'ee bahe",
-            "dhiiga baay'ee dhabe", "dhiigni cimaan jira", "dhiiguu cimaa qaba",
-            "dhiigni hin dhaabbatu", "baay'ee dhiigaa jira", "dhiigni lola'aa jira", "madaan dhiiga baasa"],
-    "S04": ["hafuura baafachuu hin danda'u", "hafuurri na kute", "hafuura dheebuu qaba",
-            "afuura baafachuun rakkisaa dha", "hafuura gabaabaa qaba", "ukkaamsaa qaba",
-            "hafuura hin argadhu", "afuurri na cite", "hafuura baafachuuf rakkadha", "hafuurri gabaabbate"],
-    "S05": ["qomni na dhukkuba", "dhukkubbii qomaa qaba", "lapheen na dhukkuba",
-            "qoma koo keessa dhukkubbii cimaa", "onneen na dhukkuba",
-            "qomatu na dhukkuba", "laphee irratti dhukkubbii", "qomni na cinqa", "onnee irratti ulfaatina"],
-    "S06": ["bofti na hidde", "bofaan ciniiname", "ciniinnaa bofaa qaba",
-            "bofti harka na hidde", "bofti miila na hidde",
-            "bofatu na ciniine", "bofni na ciniinee", "hidda bofaa qaba", "bofaan hiddame"],
-    "S07": ["ibiddaan gubadhe", "gubaa cimaa qaba", "bishaan ho'aan gubadhe",
-            "qaamni koo gubate", "gubannaa guddaa qaba",
-            "ibiddi na gube", "zayitii ho'aan gubadhe", "ibidda irraa miidhame", "harki koo gubate"],
-    "S08": ["daa'imni hin dhugu", "daa'imni nyaachuu dide", "mucaan harma hin hodhu",
-            "daa'imni nyaata dide", "mucaan dhuguu dadhabe", "daa'imni homaa hin nyaatu",
-            "mucaan aannan dide", "mucaan nyaata hin fudhatu", "daa'imni dhugaatii dide", "daa'imni laafee nyaata dide"],
-    "S09": ["ulfa dha rakkina qaba", "ulfaa dhiigaa jirti", "rakkina ulfaa qabdi",
-            "ulfi ishee rakkina qaba", "garaa ulfaa na dhukkuba", "ciniinsuun dhufe",
-            "ulfa irratti rakkinni jira", "dubartiin ulfaa dhukkubsatte", "ciniinsuu dafee dhufe", "ulfa osoo jirtuu dhiigde"],
-    "S10": ["qaamni na gubaa", "ho'a qaamaa qaba", "dhagni na ho'a", "qaamni koo ho'aa dha",
-            "ho'i cimaan jira", "qaamni ishee gubaa jira", "ho'a guddaa qaba",
-            "ho'i qaamaa ol ka'e", "qaamni gubachaa jira", "dhagni koo ho'e", "ho'a olka'aa qaba"],
-    "S11": ["nan hoqqisa", "hoqqisaa jira", "balaqqama qaba", "hoqqisuu hin dhaabbanne",
-            "waan nyaate hunda hoqqise",
-            "hoqqisuun na qabe", "balaqqamaa jira", "nan balaqqama", "waan dhuge hoqqise"],
-    "S12": ["garaan na kaasa", "garaa kaasaa qaba", "albaatii baay'ee qaba",
-            "garaachi na kaasa", "garaa kaasaa cimaa qaba", "bishaan garaa kaasa",
-            "garaa kaasaan na qabe", "garaa kaasaa bishaanii qaba", "guyyaa guutuu garaa kaasa"],
-    "S13": ["garaan na dhukkuba", "dhukkubbii garaa qaba", "garaa koo keessa dhukkubbii jira",
-            "garaachi na dhukkuba", "garaan na bowwaasa",
-            "garaatu na dhukkuba", "garaa ciniinnaa qaba", "garaan na ciniina", "dhukkubbiin garaa cimaa"],
-    "S14": ["madaa qaba", "kufee miidhame", "madaan guddaa jira", "harki na madaaye",
-            "miilli na madaaye", "madaa miilaa qaba",
-            "qaamni na madaaye", "madaa guddaa qaba", "kufee madaaye", "mukarraa kufee miidhame"],
-    "S15": ["gurri na dhukkuba", "dhukkubbii gurraa qaba", "gurra koo keessa dhukkubbii jira",
-            "gurri mucaa dhukkuba", "gurri bishaan buusa",
-            "gurratu na dhukkuba", "gurri na bokoke", "gurra keessa waa na dhukkuba", "gurri malaa baasa"],
-    "S16": ["iji na dhukkuba", "rakkina ijaa qaba", "iji diimate", "arguu rakkadha",
-            "iji koo dhukkuba", "iji bishaan buusa",
-            "ijatu na dhukkuba", "iji na diimate", "iji koo bokoke", "arguun na rakkise", "iji na hooqsisa"],
-    "S17": ["mataan na naanna'a", "mataa naanna'uu qaba", "addunyaan natti naanna'a",
-            "ol ka'ee mataan na naanna'e", "naanna'insa mataa qaba",
-            "lafti natti naanna'a", "naanna'uun mataa na qabe", "ija dura dukkanaa'a"],
-    "S18": ["mataan na dhukkuba", "dhukkubbii mataa qaba", "bowwoo mataa qaba",
-            "mataan na bowwaasa", "mataa koo na dhukkuba", "mataan baay'ee na dhukkuba",
-            "mataatu na dhukkuba", "bowwoon na qabe", "mataa bowwaa qaba", "dhukkubbiin mataa cimaan jira"],
-    "S19": ["qufaa qaba", "nan qufa'a", "qufaan na qabe", "qufaa cimaa qaba",
-            "halkan hunda qufa'a", "qufaa gogaa qaba",
-            "qufaatu na qabe", "qufa'aa bulee", "qufaa hamaa qaba", "qufaa yeroo dheeraa qaba"],
-    "S20": ["utaalloon na qabe", "funyaan dhangala'a", "utaalloo qaba",
-            "funyaan koo cufame", "haxxiffachaa jira",
-            "utaalloodhaan qabame", "funyaan na dhangala'a", "funyaan cufamee", "haxxiffannaa baay'ee qaba"],
-    "S21": ["qoonqoon na dhukkuba", "dhukkubbii qoonqoo qaba", "liqimsuu rakkadha",
-            "kokkeen na dhukkuba", "qoonqoon diimate",
-            "qoonqootu na dhukkuba", "liqimsuun na dhukkuba", "kokkee na dhukkuba", "nyaata liqimsuu dadhabe"],
-    "S22": ["buusaan na dhukkuba", "dhukkubbii buusaa qaba", "qaamni hundi na dhukkuba",
-            "lafeen na dhukkuba", "morman na dhukkuba", "dugdi na dhukkuba",
-            "buusaatu na dhukkuba", "lafeen koo na dhukkuba", "hiddi na dhukkuba", "dugda na dhukkuba"],
-    "S23": ["nan dadhabe", "dadhabbii qaba", "humna hin qabu", "baay'ee dadhabeera",
-            "hojii hojjechuu hin danda'u dadhabbiidhaan",
-            "humni na dhabame", "laafina qaba", "nan laafe", "dadhabbiin na qabe"],
-    "S24": ["finniisni gogaa irra jira", "gogaan diimate", "finniisa qaba",
-            "gogaa irra waan bahee jira", "gogaan na hooqsisa",
-            "gogaatu na hooqsisa", "finniisni bahee", "gogaan koo diimatee jira", "gogaan hooqsisaa jira"],
-}
 
-# Unrelated phrases: must trigger the fail-safe, never a route (used in eval only).
-GIBBERISH = [
-    "akkam jirta", "nagaa dha", "maqaan koo noor", "kaleessa gabaa deeme",
-    "yoom dhufta", "galatoomi", "buna bituu barbaada", "manni koo fagoo dha",
-    "guyyaa gaarii", "obboleessi koo dhufe", "gatii bunaa beektaa", "bokkaan roobe",
-]
+def load_corpus() -> tuple[dict[str, list[str]], list[str]]:
+    """Load and validate ml/corpus.json against shared/symptoms.json."""
+    data = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
+    corpus: dict[str, list[str]] = data["corpus"]
+    gibberish: list[str] = data["gibberish"]
+
+    symptoms = json.loads((ROOT / "shared" / "symptoms.json").read_text(encoding="utf-8"))
+    valid_codes = {s["code"] for s in symptoms["symptoms"]}
+
+    errors = []
+    if unknown := set(corpus) - valid_codes:
+        errors.append(f"corpus has codes not in shared/symptoms.json: {sorted(unknown)}")
+    if missing := valid_codes - set(corpus):
+        errors.append(f"symptoms without any training phrases: {sorted(missing)}")
+    for code, phrases in corpus.items():
+        if len(phrases) < 4:
+            errors.append(f"{code}: only {len(phrases)} phrases (need >= 4 for a usable 80/20 split)")
+        if len(set(phrases)) != len(phrases):
+            errors.append(f"{code}: duplicate phrases")
+    if errors:
+        sys.exit("corpus.json validation failed:\n  - " + "\n  - ".join(errors))
+    return corpus, gibberish
 
 TOKEN_RE = re.compile(r"[a-z']+")
 
@@ -200,9 +143,10 @@ def predict(text: str, vocab: dict[str, int], idf: list[float], entries: list[di
 
 def main() -> None:
     rng = random.Random(SEED)
-    classes = sorted(CORPUS.keys())
+    corpus, gibberish = load_corpus()
+    classes = sorted(corpus.keys())
 
-    singles = [(p, frozenset([c])) for c, phrases in CORPUS.items() for p in phrases]
+    singles = [(p, frozenset([c])) for c, phrases in corpus.items() for p in phrases]
     rng.shuffle(singles)
 
     # per-class 80/20 split of single phrases
@@ -223,7 +167,7 @@ def main() -> None:
     exact = sum(1 for (p, _), l in preds if frozenset(p) == l)
     overlap = sum(1 for (p, _), l in preds if p and (frozenset(p) <= l or l <= frozenset(p)))
     failsafe_clear = sum(1 for (_, conf), _ in preds if conf < AMBIGUITY_THRESHOLD)
-    failsafe_gib = sum(1 for g in GIBBERISH
+    failsafe_gib = sum(1 for g in gibberish
                        if predict(g, vocab, idf, entries)[1] < AMBIGUITY_THRESHOLD)
 
     report = [
@@ -232,9 +176,9 @@ def main() -> None:
         f"exact-set accuracy:        {exact}/{len(test_docs)} = {exact/len(test_docs):.1%}",
         f"partial-overlap accuracy:  {overlap}/{len(test_docs)} = {overlap/len(test_docs):.1%}",
         f"fail-safe on clear phrases (want low):  {failsafe_clear}/{len(test_docs)} = {failsafe_clear/len(test_docs):.1%}",
-        f"fail-safe on gibberish     (want high): {failsafe_gib}/{len(GIBBERISH)} = {failsafe_gib/len(GIBBERISH):.1%}",
+        f"fail-safe on gibberish     (want high): {failsafe_gib}/{len(gibberish)} = {failsafe_gib/len(gibberish):.1%}",
         f"ambiguity threshold: {AMBIGUITY_THRESHOLD}  select threshold: {SIM_SELECT}",
-        "corpus: synthetic, team-curated Afaan Oromoo (needs native-speaker review).",
+        "corpus: ml/corpus.json — synthetic, team-curated Afaan Oromoo (needs native-speaker review).",
     ]
     print("\n".join(report))
     (ROOT / "ml" / "eval_report.txt").write_text("\n".join(report), encoding="utf-8")

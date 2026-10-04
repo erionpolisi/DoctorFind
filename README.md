@@ -55,7 +55,7 @@ Run validation: `python -m pytest server/tests -q` (9 tests) and `python e2e_che
 |---|---|---|
 | Facility locations & types | [healthsites.io](https://healthsites.io) (OSM, CC-BY-SA); Maina et al. 2019, *Scientific Data* (98k sub-Saharan facilities) | Seed for the 8 **demo** facilities (representative Oromia facility types; coordinates illustrative, flagged as demo data) |
 | Problem evidence | World Bank Service Delivery Indicators (provider absence, stock-outs); Malaria Atlas travel-time surfaces; Mwana/mTrac SMS precedents (10M+ users) | Shows the access gap is real and SMS routing scales |
-| Training phrases | ~250 **synthetic, team-curated Afaan Oromoo phrases** (this repo, `ml/train.py`) — labeled synthetic as the brief requires | The classifier's entire training corpus |
+| Training phrases | ~250 **synthetic, team-curated Afaan Oromoo phrases** ([ml/corpus.json](ml/corpus.json)) — labeled synthetic as the brief requires | The classifier's entire training corpus |
 
 **What our data does NOT cover (scored honestly):** real field speech; dialect variation (Borana vs. Wellega Oromo); Oromo/Amharic code-switching; caregiver phrasing for child patients; audio input (next step: keyword spotting via Mozilla Common Voice Oromo contributions). Classifier eval on held-out unseen wordings: **73.6% exact-set accuracy, 83% of unrelated input correctly triggers the fail-safe** (`ml/eval_report.txt`) — and every low-confidence case goes to a human, never to a guess. Android rarely ships an `om` TTS voice, so audio prompts fall back to English while pictograms + color remain the primary non-reader channel.
 
@@ -74,7 +74,8 @@ Run validation: `python -m pytest server/tests -q` (9 tests) and `python e2e_che
 |---|---|
 | `specification.md` | Full spec: goal, constraints, tasks, validation, context, user scenarios |
 | `shared/symptoms.json` | Canonical 24-symptom set (Oromo + English + pictogram + severity + specialty) |
-| `ml/train.py` | Corpus + training + eval → `app/assets/model.json` (60 KB) |
+| `ml/corpus.json` | Training data: Oromo phrases per symptom code + fail-safe eval phrases — append here |
+| `ml/train.py` | Training + eval → `app/assets/model.json` (60 KB) |
 | `server/` | FastAPI gateway, hash table, routing engine, nurse dashboard, pytest suite |
 | `app/` | Expo (React Native, TS) patient app — offline classifier, SMS, TTS |
 | `e2e_check.py` | Live round-trip rehearsal check (run before the demo) |

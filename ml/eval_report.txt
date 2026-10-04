@@ -5,4 +5,4 @@ partial-overlap accuracy:  64/87 = 73.6%
 fail-safe on clear phrases (want low):  10/87 = 11.5%
 fail-safe on gibberish     (want high): 10/12 = 83.3%
 ambiguity threshold: 0.5  select threshold: 0.4
-corpus: synthetic, team-curated Afaan Oromoo (needs native-speaker review).
+corpus: ml/corpus.json — synthetic, team-curated Afaan Oromoo (needs native-speaker review).
