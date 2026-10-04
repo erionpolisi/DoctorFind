@@ -168,26 +168,25 @@ export default function App() {
 
   // ---------------------------------------------------------------- chrome
   const LangToggle = (
-    <Pressable style={st.langBtn} onPress={() => setLang(l => (l === "om" ? "en" : "om"))}>
-      <Text style={st.langBtnText}>{lang === "om" ? "EN" : "OM"}</Text>
+    <Pressable style={st.hBtn} onPress={() => setLang(l => (l === "om" ? "en" : "om"))}>
+      <Text style={st.hBtnText}>{lang === "om" ? "EN" : "OM"}</Text>
     </Pressable>
   );
 
   const MuteToggle = (
     <Pressable
-      style={[st.langBtn, muted && { backgroundColor: "#fef2f2", borderColor: "#dc2626" }]}
+      style={[st.hBtn, muted && st.hBtnMuted]}
       onPress={() => { if (!muted) Speech.stop(); setMuted(m => !m); }}>
-      <Text style={st.langBtnText}>{muted ? "🔇" : "🔊"}</Text>
+      <Text style={st.hBtnText}>{muted ? "🔇" : "🔊"}</Text>
     </Pressable>
   );
 
   const Header = (
     <View style={st.header}>
-      <View style={st.brandDot}><Text style={st.brandDotText}>✚</Text></View>
-      <Text style={st.brand}>{t(lang, "appName")}</Text>
+      <Text style={st.brand}>Doctor<Text style={st.brandAccent}>Find</Text><Text style={st.brandSup}> ✚</Text></Text>
       <View style={{ flex: 1 }} />
       {screen === "consent" && (
-        <Pressable style={st.gear} onPress={() => setShowSettings(s => !s)}><Text style={{ fontSize: 18 }}>⚙️</Text></Pressable>
+        <Pressable style={st.hBtn} onPress={() => setShowSettings(s => !s)}><Text style={st.hBtnText}>⚙️</Text></Pressable>
       )}
       {MuteToggle}
       {LangToggle}
@@ -205,7 +204,7 @@ export default function App() {
           <Text style={st.cardTitle}>{t(lang, "consentTitle")}</Text>
           <Text style={st.body}>{t(lang, "consentBody")}</Text>
         </View>
-        <Big color="#0f766e" onPress={() => { speak("Baga nagaan dhufte", "Welcome"); setScreen("home"); }}>
+        <Big color="#10a37f" onPress={() => { speak("Baga nagaan dhufte", "Welcome"); setScreen("home"); }}>
           {t(lang, "consentYes")}
         </Big>
         {showSettings && (
@@ -251,7 +250,7 @@ export default function App() {
           </View>
         )}
         {!!freeText.trim() && !listening && (
-          <Big small color="#1d4ed8" onPress={() => runClassifier(freeText)}>🤖 {t(lang, "aiButton")}</Big>
+          <Big small color="#3f7fde" onPress={() => runClassifier(freeText)}>🤖 {t(lang, "aiButton")}</Big>
         )}
         {aiNote && <Text style={st.aiNote}>{aiNote}</Text>}
         {notice && <Text style={st.notice}>{notice}</Text>}
@@ -262,7 +261,7 @@ export default function App() {
             const on = selected.includes(s.code);
             return (
               <Pressable key={s.code} onPress={() => { toggle(s.code); speak(s.om, s.en); }}
-                style={[st.cell, on && { borderColor: TIER_UI[String(s.severity) as Tier].color, backgroundColor: "#f0fdfa" }]}>
+                style={[st.cell, on && { borderColor: TIER_UI[String(s.severity) as Tier].color, backgroundColor: "#e6f7f1" }]}>
                 <Text style={st.emoji}>{s.emoji}</Text>
                 <Text style={st.cellLabel} numberOfLines={2}>{s[lang]}</Text>
               </Pressable>
@@ -275,7 +274,7 @@ export default function App() {
             <Text style={st.tierText}>{TIER_UI[tier][lang]}</Text>
           </View>
         )}
-        <Big color="#0f766e" disabled={selected.length === 0 && !(ambiguous && freeText)} onPress={goConfirm}>
+        <Big color="#10a37f" disabled={selected.length === 0 && !(ambiguous && freeText)} onPress={goConfirm}>
           {t(lang, "continueBtn")}
         </Big>
       </Shell>
@@ -306,18 +305,18 @@ export default function App() {
         </View>
 
         {(smsPossible || Platform.OS === "web") && (
-          <Big color="#0f766e" onPress={sendRealSms}>{t(lang, "sendSms")}</Big>
+          <Big color="#10a37f" onPress={sendRealSms}>{t(lang, "sendSms")}</Big>
         )}
-        <Big color="#1d4ed8" onPress={sendDemoChannel}>{t(lang, "sendDemo")}</Big>
+        <Big color="#3f7fde" onPress={sendDemoChannel}>{t(lang, "sendDemo")}</Big>
         {notice && <Text style={st.notice}>{notice}</Text>}
 
         <View style={st.rowButtons}>
-          <Big small color="#e2e8f0" dark onPress={() => setScreen("home")}>{t(lang, "back")}</Big>
-          <Big small color="#e2e8f0" dark onPress={() =>
+          <Big small color="#eef2f7" dark onPress={() => setScreen("home")}>{t(lang, "back")}</Big>
+          <Big small color="#eef2f7" dark onPress={() =>
             speak(selected.map(c => BY_CODE[c].om).join(", "), selected.map(c => BY_CODE[c].en).join(", "))}>
             {t(lang, "speak")}
           </Big>
-          <Big small color="#e2e8f0" dark onPress={() => setShowDetails(d => !d)}>ℹ️</Big>
+          <Big small color="#eef2f7" dark onPress={() => setShowDetails(d => !d)}>ℹ️</Big>
         </View>
         {showDetails && (
           <View style={st.card}>
@@ -350,12 +349,12 @@ export default function App() {
               <Text style={st.callBtnSub}>{t(lang, "call")}</Text>
             </Pressable>
           </View>
-          <Big small color="#e2e8f0" dark onPress={() => speak(ui.om, ui.en)}>{t(lang, "speak")}</Big>
+          <Big small color="#eef2f7" dark onPress={() => speak(ui.om, ui.en)}>{t(lang, "speak")}</Big>
         </>
       ) : (
         <View style={st.card}><Text style={st.body}>{t(lang, "noReply")}</Text></View>
       )}
-      <Big color="#0f766e" onPress={resetAll}>{t(lang, "newCase")}</Big>
+      <Big color="#10a37f" onPress={resetAll}>{t(lang, "newCase")}</Big>
     </Shell>
   );
 }
@@ -364,7 +363,7 @@ export default function App() {
 function Shell({ children, header }: { children: React.ReactNode; header: React.ReactNode }) {
   return (
     <View style={st.root}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       {header}
       <ScrollView contentContainerStyle={st.scroll}>{children}</ScrollView>
     </View>
@@ -380,56 +379,58 @@ function Big({ children, onPress, color, disabled, small, dark }: {
         st.big, small && st.bigSmall,
         { backgroundColor: color, opacity: disabled ? 0.4 : pressed ? 0.85 : 1 },
       ]}>
-      <Text style={[st.bigText, small && { fontSize: 14 }, dark && { color: "#15213b" }]}>{children}</Text>
+      <Text style={[st.bigText, small && { fontSize: 14 }, dark && { color: "#273142" }]}>{children}</Text>
     </Pressable>
   );
 }
 
 const st = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#f4f6fa" },
+  root: { flex: 1, backgroundColor: "#f2f5f9" },
   header: {
-    flexDirection: "row", alignItems: "center", gap: 10,
+    flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingTop: 48, paddingBottom: 12,
-    backgroundColor: "#ffffff", borderBottomWidth: 1, borderBottomColor: "#e3e8f0",
+    backgroundColor: "#0a7a5f",
   },
-  brandDot: { width: 30, height: 30, borderRadius: 8, backgroundColor: "#0f766e", alignItems: "center", justifyContent: "center" },
-  brandDotText: { color: "#fff", fontWeight: "800", fontSize: 16 },
-  brand: { fontSize: 17, fontWeight: "800", color: "#15213b" },
-  gear: { padding: 6 },
-  langBtn: {
-    borderWidth: 1.5, borderColor: "#0f766e", borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 5, backgroundColor: "#f0fdfa",
+  brand: { fontSize: 19, fontWeight: "800", color: "#ffffff", letterSpacing: 0.2 },
+  brandAccent: { color: "#9fe8cf" },
+  brandSup: { color: "#c9f3e4", fontSize: 12 },
+  hBtn: {
+    minWidth: 38, height: 34, borderRadius: 17, paddingHorizontal: 11,
+    backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center",
   },
-  langBtnText: { color: "#0f766e", fontWeight: "800", fontSize: 13 },
+  hBtnMuted: { backgroundColor: "rgba(220,38,38,0.45)" },
+  hBtnText: { color: "#ffffff", fontWeight: "800", fontSize: 13 },
   scroll: { padding: 16, paddingBottom: 48 },
 
   hero: { fontSize: 56, textAlign: "center", marginTop: 18 },
-  heroTitle: { fontSize: 30, fontWeight: "800", color: "#15213b", textAlign: "center" },
-  heroSub: { color: "#64748b", textAlign: "center", marginTop: 4, marginBottom: 14, fontSize: 15 },
+  heroTitle: { fontSize: 30, fontWeight: "800", color: "#273142", textAlign: "center" },
+  heroSub: { color: "#8a94a6", textAlign: "center", marginTop: 4, marginBottom: 14, fontSize: 15 },
 
-  question: { fontSize: 24, fontWeight: "800", color: "#15213b", marginVertical: 10 },
+  question: { fontSize: 22, fontWeight: "800", color: "#273142", marginVertical: 10 },
   card: {
-    backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#e3e8f0", borderRadius: 14,
+    backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#e9edf3", borderRadius: 12,
     padding: 16, marginVertical: 8,
+    shadowColor: "#273142", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
   },
-  cardTitle: { fontSize: 15, fontWeight: "700", color: "#15213b", marginBottom: 6 },
-  body: { color: "#334155", fontSize: 14.5, lineHeight: 21 },
-  label: { color: "#64748b", fontSize: 12.5, marginTop: 10, marginBottom: 4 },
+  cardTitle: { fontSize: 14, fontWeight: "800", color: "#0a7a5f", marginBottom: 6 },
+  body: { color: "#45526b", fontSize: 14.5, lineHeight: 21 },
+  label: { color: "#8a94a6", fontSize: 12.5, marginTop: 10, marginBottom: 4 },
   input: {
-    backgroundColor: "#f8fafc", borderColor: "#e3e8f0", borderWidth: 1, borderRadius: 10,
-    color: "#15213b", padding: 10, fontSize: 14,
+    backgroundColor: "#f7f9fc", borderColor: "#e9edf3", borderWidth: 1, borderRadius: 9,
+    color: "#273142", padding: 10, fontSize: 14,
   },
 
   inputRow: { flexDirection: "row", gap: 10, alignItems: "stretch" },
   textInput: {
-    flex: 1, backgroundColor: "#ffffff", borderColor: "#e3e8f0", borderWidth: 1, borderRadius: 14,
-    color: "#15213b", padding: 14, fontSize: 16, minHeight: 56,
+    flex: 1, backgroundColor: "#ffffff", borderColor: "#e9edf3", borderWidth: 1, borderRadius: 12,
+    color: "#273142", padding: 14, fontSize: 16, minHeight: 56,
+    shadowColor: "#273142", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
   micBtn: {
-    width: 56, borderRadius: 14, backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#e3e8f0",
+    width: 56, borderRadius: 12, backgroundColor: "#10a37f",
     alignItems: "center", justifyContent: "center",
   },
-  micBtnOn: { borderColor: "#dc2626", backgroundColor: "#fef2f2" },
+  micBtnOn: { backgroundColor: "#fee2e2", borderWidth: 2, borderColor: "#dc2626" },
   micIcon: { fontSize: 24 },
   micPulse: {
     position: "absolute", width: 40, height: 40, borderRadius: 20,
@@ -443,51 +444,53 @@ const st = StyleSheet.create({
   listenText: { color: "#b91c1c", fontWeight: "700", fontSize: 14 },
 
   aiNote: {
-    color: "#334155", fontSize: 14, marginTop: 10, backgroundColor: "#f0fdfa",
-    borderColor: "#99f6e4", borderWidth: 1, borderRadius: 10, padding: 10, lineHeight: 20,
+    color: "#177a53", fontSize: 14, marginTop: 10, backgroundColor: "#e8f8f0",
+    borderColor: "#c9ecd9", borderWidth: 1, borderRadius: 10, padding: 10, lineHeight: 20,
   },
   notice: {
     color: "#b91c1c", fontSize: 13, marginTop: 10, backgroundColor: "#fef2f2",
     borderColor: "#fecaca", borderWidth: 1, borderRadius: 10, padding: 10,
   },
-  orTap: { color: "#64748b", fontSize: 13, marginTop: 16, marginBottom: 8 },
+  orTap: { color: "#8a94a6", fontSize: 13, marginTop: 16, marginBottom: 8 },
 
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   cell: {
-    width: "23.3%", backgroundColor: "#ffffff", borderColor: "#e3e8f0", borderWidth: 2,
+    width: "23.3%", backgroundColor: "#ffffff", borderColor: "#e9edf3", borderWidth: 2,
     borderRadius: 12, alignItems: "center", paddingVertical: 10, paddingHorizontal: 2, minHeight: 78,
   },
   emoji: { fontSize: 26 },
-  cellLabel: { color: "#15213b", fontSize: 10.5, fontWeight: "700", textAlign: "center", marginTop: 4 },
+  cellLabel: { color: "#273142", fontSize: 10.5, fontWeight: "700", textAlign: "center", marginTop: 4 },
 
   tierBar: { borderRadius: 10, padding: 11, marginTop: 14 },
   tierText: { color: "#ffffff", fontWeight: "800", textAlign: "center", fontSize: 15 },
 
-  big: { borderRadius: 14, padding: 16, marginTop: 12 },
+  big: { borderRadius: 12, padding: 16, marginTop: 12,
+    shadowColor: "#273142", shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   bigSmall: { padding: 10, marginTop: 8, flex: 1 },
   bigText: { color: "#ffffff", fontWeight: "800", fontSize: 17, textAlign: "center" },
   rowButtons: { flexDirection: "row", gap: 8 },
 
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
-    backgroundColor: "#f0fdfa", borderColor: "#99f6e4", borderWidth: 1,
+    backgroundColor: "#e6f7f1", borderColor: "#bfe9da", borderWidth: 1,
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
   },
-  chipText: { color: "#134e4a", fontWeight: "700", fontSize: 14 },
-  privacyNote: { color: "#64748b", fontSize: 12, marginTop: 10 },
+  chipText: { color: "#0a7a5f", fontWeight: "700", fontSize: 14 },
+  privacyNote: { color: "#8a94a6", fontSize: 12, marginTop: 10 },
   payload: {
-    color: "#0f766e", fontFamily: Platform.OS === "web" ? "monospace" : "monospace",
-    fontSize: 13, backgroundColor: "#f8fafc", padding: 10, borderRadius: 8,
+    color: "#10a37f", fontFamily: Platform.OS === "web" ? "monospace" : "monospace",
+    fontSize: 13, backgroundColor: "#f7f9fc", padding: 10, borderRadius: 8,
   },
 
   replyCard: {
-    backgroundColor: "#ffffff", borderWidth: 3, borderRadius: 18, padding: 22,
+    backgroundColor: "#ffffff", borderWidth: 3, borderRadius: 14, padding: 22,
     alignItems: "center", marginVertical: 10,
+    shadowColor: "#273142", shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
   replyIcon: { fontSize: 52 },
   replyAction: { fontSize: 22, fontWeight: "900", textAlign: "center", marginVertical: 8 },
-  replyFacility: { color: "#15213b", fontSize: 19, fontWeight: "700", textAlign: "center" },
-  callBtn: { borderRadius: 14, paddingVertical: 12, paddingHorizontal: 22, marginTop: 14, alignItems: "center" },
+  replyFacility: { color: "#273142", fontSize: 19, fontWeight: "700", textAlign: "center" },
+  callBtn: { borderRadius: 12, paddingVertical: 12, paddingHorizontal: 22, marginTop: 14, alignItems: "center" },
   callBtnText: { color: "#fff", fontWeight: "800", fontSize: 17 },
   callBtnSub: { color: "rgba(255,255,255,0.85)", fontSize: 11.5, marginTop: 2 },
 });

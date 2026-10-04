@@ -60,10 +60,19 @@ self.addEventListener("activate", e => {{
 self.addEventListener("fetch", e => {{
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || !url.pathname.startsWith({json.dumps(BASE)})) return; // API calls go to network
+  if (e.request.mode === "navigate") {{
+    // network-first for the page: new deployments show up immediately; cache only when offline
+    e.respondWith(fetch(e.request).catch(() => caches.match({json.dumps(BASE + "index.html")})));
+    return;
+  }}
+  // hashed assets are immutable: cache-first, fill cache on miss
   e.respondWith(
     caches.match(e.request, {{ignoreSearch: true}}).then(hit => hit ??
-      fetch(e.request).catch(() =>
-        e.request.mode === "navigate" ? caches.match({json.dumps(BASE + "index.html")}) : Response.error()))
+      fetch(e.request).then(res => {{
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return res;
+      }}))
   );
 }});
 """
