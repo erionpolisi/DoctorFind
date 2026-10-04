@@ -1,13 +1,27 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
-    "gateway": {
+    "app": {
       "root": ".",
-      "framework": "fastapi",
-      "entrypoint": "api/index.py"
+      "framework": "fastapi"
+    },
+    "server": {
+      "root": "server",
+      "framework": "fastapi"
     }
   },
   "rewrites": [
-    { "source": "/(.*)", "destination": { "service": "gateway" } }
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "server"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "app"
+      }
+    }
   ]
 }
