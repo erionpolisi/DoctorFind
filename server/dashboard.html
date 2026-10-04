@@ -147,12 +147,6 @@ const fac = () => STATE?.facilities.find(f => f.id === FID);
 const freeBeds = f => Math.max(0, f.total_beds - f.beds_occupied);
 const overBy = f => Math.max(0, f.beds_occupied - f.total_beds);
 const fmtTime = ts => new Date(ts*1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-// Redirect target: another hospital with free beds first; if none, the one
-// with the best overload score (total - patients over max) = load balancing.
-const altScore = f => freeBeds(f) > 0 ? 1000 + freeBeds(f) : f.total_beds - overBy(f);
-const bestAlt = () => STATE.facilities
-  .filter(f => f.type === 'hospital' && f.id !== FID)
-  .sort((a,b) => altScore(b) - altScore(a))[0] ?? null;
 
 function goPicker() { history.pushState({}, '', location.pathname); FID = null; render(); }
 function openFac(id) { history.pushState({}, '', '?f=' + id); FID = id; render(); }
@@ -210,7 +204,6 @@ function renderFacility() {
     : pct >= 100 ? 'Facility full — new urgent cases go to the hospital with the most capacity.' : '';
 
   const queue = STATE.cases.filter(c => c.needs_review && !c.handled && (c.facility_id === FID || c.tier === 'A'));
-  const alt = bestAlt();
   const amFull = freeBeds(f) === 0;
   $('queue').innerHTML = queue.length ? queue.map(c => `
     <div class="queue-item">
@@ -223,7 +216,6 @@ function renderFacility() {
           <button class="btn subtle" onclick="markHandled(${c.id})">Dismiss</button>
         ` : `
           ${canAccept(c) ? `<button class="btn" onclick="accept(${c.id})">${amFull ? '✓ Accept — waiting list' : '✓ Accept patient'}</button>` : ''}
-          ${alt ? `<button class="btn violet" onclick="resolveTo(${c.id}, '${alt.id}', 'GO_HOSPITAL')">↪ Redirect → ${alt.name} (${freeBeds(alt) > 0 ? freeBeds(alt) + ' free' : '+' + overBy(alt) + ' over'})</button>` : ''}
         `}
       </div>
     </div>`).join('') : '<div class="empty">Queue empty.</div>';
